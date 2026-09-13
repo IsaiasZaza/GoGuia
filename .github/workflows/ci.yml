@@ -27,7 +27,7 @@ jobs:
           cache: npm
 
       - name: Instalar dependências
-        run: npm ci
+        run: npm install
 
       - name: Verificar tipos TypeScript
         run: npm run type-check
@@ -53,7 +53,7 @@ jobs:
           cache: npm
 
       - name: Instalar dependências
-        run: npm ci
+        run: npm install
 
       - name: Build da aplicação
         run: npm run build
