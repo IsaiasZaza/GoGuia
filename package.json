@@ -1,16 +1,13 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "goguia",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "version": "0.1.0",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "build:dev": "vite build --mode development",
-    "test": "vitest run --passWithNoTests",
-    "lint": "eslint .",
-    "type-check": "tsc --noEmit",
-    "preview": "vite preview"
+    "dev": "next dev -p 8080",
+    "build": "next build",
+    "start": "next start -p 8080",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",
@@ -57,13 +54,13 @@
     "input-otp": "^1.2.4",
     "lucide-react": "^0.462.0",
     "maplibre-gl": "^5.24.0",
+    "next": "^15.1.0",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.64.0",
     "react-resizable-panels": "^2.1.3",
-    "react-router-dom": "^6.26.2",
     "recharts": "^2.12.7",
     "socket.io-client": "^4.8.1",
     "sonner": "^1.5.0",
@@ -78,18 +75,14 @@
     "@types/node": "^25.9.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react-swc": "^3.5.0",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.9.0",
+    "eslint-config-next": "^15.1.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
-    "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
-    "lovable-tagger": "^1.1.7",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
-    "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1",
-    "vitest": "^4.1.7"
+    "typescript-eslint": "^8.0.1"
   }
 }
