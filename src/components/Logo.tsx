@@ -1,3 +1,5 @@
+"use client";
+
 import { MapPin, Users } from "lucide-react";
 
 

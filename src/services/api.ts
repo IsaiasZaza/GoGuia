@@ -22,28 +22,38 @@ class ApiService {
     return headers;
   }
 
-  private async handleResponse<T>(response: Response): Promise<T> {
-    if (response.status === 401) {
+  private async handleResponse<T>(response: Response, skipAuth = false): Promise<T> {
+    if (response.status === 401 && !skipAuth) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('tempoSessao');
-      localStorage.setItem('expiredSessionMessage', 'Sessão Expirada. Faça login novamente.');
-      window.location.href = '/';
+      localStorage.setItem('expiredSessionMessage', 'Sessão expirada. Faça login novamente.');
+      window.location.href = '/login';
       throw new Error('Session expired');
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      const message =
+        (errorData && typeof errorData === 'object' && 'message' in errorData && typeof errorData.message === 'string'
+          ? errorData.message
+          : null) || response.statusText || 'Request failed';
       throw {
         response: {
           status: response.status,
           data: errorData,
         },
-        message: response.statusText || 'Request failed',
+        message,
       };
     }
 
-    return response.json();
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const text = await response.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
   }
 
   async get<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
@@ -59,7 +69,7 @@ class ApiService {
     });
 
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, skipAuth);
   }
 
   async post<T>(endpoint: string, data?: any, options: FetchOptions = {}, arquivo?: File): Promise<T> {
@@ -96,7 +106,27 @@ class ApiService {
       ...fetchOptions,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, skipAuth);
+  }
+
+  async postForm<T>(endpoint: string, formData: FormData, options: FetchOptions = {}): Promise<T> {
+    const { skipAuth, ...fetchOptions } = options;
+    const headers: HeadersInit = {};
+
+    if (!skipAuth) {
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: formData,
+      ...fetchOptions,
+    });
+
+    return this.handleResponse<T>(response, skipAuth);
   }
 
   async put<T>(endpoint: string, data?: any, options: FetchOptions = {}): Promise<T> {
@@ -112,7 +142,7 @@ class ApiService {
       ...fetchOptions,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, skipAuth);
   }
 
   async delete<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
@@ -127,7 +157,7 @@ class ApiService {
       ...fetchOptions,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, skipAuth);
   }
 
   async patch<T>(endpoint: string, data?: any, options: FetchOptions = {}): Promise<T> {
@@ -143,7 +173,7 @@ class ApiService {
       ...fetchOptions,
     });
 
-    return this.handleResponse<T>(response);
+    return this.handleResponse<T>(response, skipAuth);
   }
 
   async postText(endpoint: string, data?: any, options: FetchOptions = {}): Promise<string> {
@@ -182,6 +212,10 @@ class ApiService {
     return response.text();
   }
 }
+
+const api = new ApiService(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
+
+export default api;
 
 
 

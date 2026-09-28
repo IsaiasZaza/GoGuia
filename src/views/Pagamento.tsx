@@ -1,10 +1,22 @@
 "use client";
 
 import { Box, Button, Card, Container, Divider, Stack, TextField, Typography } from "@mui/material";
-import { ArrowLeft, Clock, CreditCard, QrCode, ShieldAlert, User, Users } from 'lucide-react';
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { ArrowLeft, CheckCircle2, Clock, CreditCard, QrCode, ShieldAlert, User, Users } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/layout/AppHeader";
+import {
+  aplicarCupom,
+  carteiraTurista,
+  consultarPagamento,
+  detalheReserva,
+  formatBRL,
+  pagarReserva,
+  type CupomAplicado,
+  type PagamentoPix,
+  type Reserva,
+} from "@/services/dominio";
+import { getApiErrorMessage } from "@/services/auth";
 
 const ORANGE = "#F47B2A";
 const NAVY = "#1F3A66";
@@ -27,6 +39,11 @@ function MethodCard({
   return (
     <Card
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onClick();
+      }}
       sx={{
         p: 2,
         cursor: "pointer",
@@ -63,8 +80,8 @@ function MethodCard({
   );
 }
 
-function PixPanel() {
-  const code = "1a2b3c4d567890abcdejhdsbfgjy";
+function PixPanel({ pagamento }: { pagamento: PagamentoPix | null }) {
+  const code = pagamento?.copiaECola || "Gerando código...";
   return (
     <Card sx={{ p: 3, borderRadius: 3, position: "relative", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <Box
@@ -92,11 +109,11 @@ function PixPanel() {
             bgcolor: "#fff",
           }}
         >
-          <img
-            alt="QR Code PIX"
-            src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 10 10'><rect width='10' height='10' fill='white'/><g fill='black'><rect x='0' y='0' width='3' height='3'/><rect x='7' y='0' width='3' height='3'/><rect x='0' y='7' width='3' height='3'/><rect x='1' y='1' width='1' height='1' fill='white'/><rect x='8' y='1' width='1' height='1' fill='white'/><rect x='1' y='8' width='1' height='1' fill='white'/><rect x='4' y='1' width='1' height='1'/><rect x='5' y='2' width='1' height='1'/><rect x='4' y='4' width='2' height='2'/><rect x='7' y='5' width='1' height='1'/><rect x='5' y='7' width='1' height='1'/><rect x='7' y='8' width='1' height='1'/><rect x='8' y='4' width='1' height='1'/><rect x='3' y='5' width='1' height='1'/><rect x='6' y='6' width='1' height='1'/><rect x='2' y='4' width='1' height='1'/></g></svg>"
-            style={{ width: 120, height: 120 }}
-          />
+          {pagamento?.qrCode ? (
+            <img alt="QR Code PIX" src={pagamento.qrCode} style={{ width: 120, height: 120 }} />
+          ) : (
+            <QrCode size={48} color="#9ca3af" />
+          )}
         </Box>
         <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontWeight: 800, color: NAVY, fontSize: 22 }}>PIX</Typography>
@@ -119,12 +136,17 @@ function PixPanel() {
             <Button
               variant="contained"
               sx={{ bgcolor: ORANGE, textTransform: "none", fontWeight: 700, "&:hover": { bgcolor: "#e06b1f" } }}
+              onClick={() => pagamento?.copiaECola && navigator.clipboard.writeText(pagamento.copiaECola)}
             >
               Copiar código
             </Button>
           </Stack>
           <Typography sx={{ mt: 1.2, color: "#374151", fontSize: 14 }}>
-            Expira em: <b>09:32</b>
+            {pagamento?.status === "PAGO"
+              ? "Pagamento confirmado"
+              : pagamento?.expiraEm
+              ? `Expira em: ${new Date(pagamento.expiraEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+              : "Aguardando código"}
           </Typography>
         </Box>
       </Stack>
@@ -142,7 +164,7 @@ function PixPanel() {
           "&:hover": { bgcolor: "#e06b1f" },
         }}
       >
-        Esperando Pagamento . . .
+        {pagamento?.status === "PAGO" ? "Pagamento confirmado" : "Esperando pagamento..."}
       </Button>
     </Card>
   );
@@ -198,28 +220,27 @@ function CardPanel() {
   );
 }
 
-function ReviewPanel() {
+function ReviewPanel({ reserva }: { reserva: Reserva | null }) {
   return (
     <Card sx={{ p: 3, borderRadius: 3, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: "flex-start", mb: 2 }}>
         <Box
           component="img"
-          src={"https://vineadei.wordpress.com/wp-content/uploads/2021/06/images28129.jpeg?w=640"}
-          alt="Panteão Pátria Liberdade"
+          src={reserva?.roteiro?.imageUrl || "/assets/hero.jpg"}
+          alt={reserva?.roteiro?.titulo || "Roteiro"}
           sx={{ width: 170, height: 110, objectFit: "cover", borderRadius: 1 }}
         />
         <Box sx={{ flex: 1 }}>
           <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "flex-start" }}>
             <Typography sx={{ fontWeight: 800, color: NAVY, fontSize: 18 }}>
-              Panteão Pátria Liberdade
+              {reserva?.roteiro?.titulo || "Reserva"}
             </Typography>
-            <Typography sx={{ color: NAVY, fontWeight: 800, fontSize: 13 }}>17 / 02 / 2026</Typography>
+            <Typography sx={{ color: NAVY, fontWeight: 800, fontSize: 13 }}>
+              {reserva?.data ? new Date(`${reserva.data}T00:00:00`).toLocaleDateString("pt-BR") : ""}
+            </Typography>
           </Stack>
           <Typography sx={{ color: "#374151", fontSize: 13, mt: 0.5, lineHeight: 1.4 }}>
-            Um espaço moderno e imponente, marcado por uma arquitetura única com formas
-            angulares e contemporâneas. Ideal para quem aprecia design inovador e busca um ponto
-            turístico diferenciado, o local oferece uma experiência visual marcante e perfeita para
-            fotos e momentos especiais.
+            {reserva?.roteiro?.descricao}
           </Typography>
         </Box>
       </Stack>
@@ -238,24 +259,28 @@ function ReviewPanel() {
           }}
         >
           <Stack direction="row" sx={{ alignItems: "center" }} spacing={1}>
-            <Clock className="fontSize: 22" />
-            <Typography sx={{ fontWeight: 800, fontSize: 24 }}>12 : 30</Typography>
+            <Clock size={22} />
+            <Typography sx={{ fontWeight: 800, fontSize: 24 }}>{reserva?.horario || "--:--"}</Typography>
           </Stack>
-          <Typography sx={{ fontWeight: 800, fontSize: 22, mt: 1 }}>17 / 02 / 26</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: 22, mt: 1 }}>
+            {reserva?.data ? new Date(`${reserva.data}T00:00:00`).toLocaleDateString("pt-BR") : ""}
+          </Typography>
         </Box>
         <Box sx={{ flex: 1, pt: 1 }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1.5 }}>
-            <User className={`color: ${NAVY}`} />
+            <User size={18} color={NAVY} />
             <Box>
               <Typography sx={{ fontSize: 11, color: "#6b7280" }}>Guia</Typography>
-              <Typography sx={{ fontWeight: 700, color: NAVY }}>Pedro castro França</Typography>
+              <Typography sx={{ fontWeight: 700, color: NAVY }}>{reserva?.guia?.nomeCompleto}</Typography>
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1.5 }}>
-            <Users className={`color: ${NAVY}`} />
+            <Users size={18} color={NAVY} />
             <Box>
               <Typography sx={{ fontSize: 11, color: "#6b7280" }}>Quantidade</Typography>
-              <Typography sx={{ fontWeight: 700, color: NAVY }}>5 Pessoas</Typography>
+              <Typography sx={{ fontWeight: 700, color: NAVY }}>
+                {reserva?.quantidade} {reserva?.quantidade === 1 ? "pessoa" : "pessoas"}
+              </Typography>
             </Box>
           </Stack>
           <Stack
@@ -283,7 +308,50 @@ function ReviewPanel() {
 
 export default function Pagamento() {
   const [method, setMethod] = useState<"none" | "pix" | "card">("none");
-  const router = useRouter()
+  const [reserva, setReserva] = useState<Reserva | null>(null);
+  const [pix, setPix] = useState<PagamentoPix | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [codigo, setCodigo] = useState("");
+  const [cupom, setCupom] = useState<CupomAplicado | null>(null);
+  const [usarCashback, setUsarCashback] = useState(false);
+  const [cashback, setCashback] = useState(0);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") || "";
+  const pago = pix?.status === "PAGO";
+
+  useEffect(() => {
+    if (!id) return;
+    detalheReserva(id).then(setReserva).catch(() => setReserva(null));
+    carteiraTurista().then((carteira) => setCashback(carteira.cashback)).catch(() => setCashback(0));
+  }, [id]);
+
+  useEffect(() => {
+    if (method !== "pix" || !id) return;
+    let active = true;
+    const carregar = () =>
+      consultarPagamento(id)
+        .then((data) => {
+          if (active) setPix(data);
+        })
+        .catch(() => undefined);
+
+    pagarReserva(id, "PIX", { codigoCupom: cupom?.codigo, usarCashback })
+      .then((data) => {
+        if (active) setPix(data);
+      })
+      .catch((error) => {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (active && status !== 409) setErro(getApiErrorMessage(error, "Não foi possível gerar o PIX."));
+        carregar();
+      });
+
+    const timer = window.setInterval(carregar, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [method, id, cupom?.codigo, usarCashback]);
 
   return (
 
@@ -298,33 +366,71 @@ export default function Pagamento() {
             variant="contained"
             startIcon={<ArrowLeft />}
             sx={{ bgcolor: NAVY, borderRadius: 2, textTransform: "none", fontWeight: 700, px: 2.5, "&:hover": { bgcolor: "#162a4a" } }}
-            onClick={() => router.back()}
+            onClick={() => (pago ? router.push("/agendamentos") : router.back())}
           >
-            Cancelar
+            {pago ? "Voltar" : "Cancelar"}
           </Button>
         </Stack>
 
         <Stack direction={{ xs: "column", md: "row" }} spacing={4} sx={{ alignItems: "flex-start" }}>
           <Box sx={{ flex: 1, width: "100%" }}>
-            <Stack direction="row" spacing={2} sx={{ mb: 3, flexWrap: "wrap" }}>
+            <Stack direction="row" spacing={2} sx={{ mb: 3, flexWrap: "wrap", display: pago ? "none" : "flex" }}>
               <MethodCard
                 active={method === "pix"}
-                icon={<QrCode className="fontSize: 22px" />}
+                icon={<QrCode size={22} />}
                 title="PIX"
                 subtitle="Pagamento instantâneo"
                 onClick={() => setMethod("pix")}
               />
               <MethodCard
                 active={method === "card"}
-                icon={<CreditCard className="fontSize: 22px" />}
+                icon={<CreditCard size={22} />}
                 title="CARTÃO"
                 subtitle="Crédito ou débito"
-                onClick={() => setMethod("card")}
+                onClick={() => {
+                  setMethod("card");
+                  if (id) {
+                    pagarReserva(id, "CARTAO", { codigoCupom: cupom?.codigo, usarCashback }).catch((error) =>
+                      setErro(getApiErrorMessage(error, "Cartão indisponível no momento."))
+                    );
+                  }
+                }}
               />
             </Stack>
-            {method === "none" && <ReviewPanel />}
-            {method === "pix" && <PixPanel />}
-            {method === "card" && <CardPanel />}
+            {erro && <Typography sx={{ color: "#b91c1c", mb: 2 }}>{erro}</Typography>}
+            {pago ? (
+              <Card sx={{ p: 4, borderRadius: 3, textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+                <CheckCircle2 size={56} color="#16a34a" style={{ margin: "0 auto" }} />
+                <Typography sx={{ fontWeight: 800, color: NAVY, fontSize: 24, mt: 2 }}>
+                  Pagamento confirmado
+                </Typography>
+                <Typography sx={{ color: "#4b5563", mt: 1 }}>
+                  Sua reserva foi enviada ao guia. Você recebe um aviso assim que ele confirmar.
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ justifyContent: "center", mt: 3 }}>
+                  <Button
+                    variant="contained"
+                    sx={{ bgcolor: ORANGE, textTransform: "none", fontWeight: 700, borderRadius: 999, px: 4, "&:hover": { bgcolor: "#e06b1f" } }}
+                    onClick={() => router.push("/agendamentos")}
+                  >
+                    Ver meus agendamentos
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 999, px: 4, color: NAVY, borderColor: "#d1d5db" }}
+                    onClick={() => router.push("/roteiros")}
+                  >
+                    Explorar outros roteiros
+                  </Button>
+                </Stack>
+              </Card>
+            ) : (
+              <>
+                {method === "none" && <ReviewPanel reserva={reserva} />}
+                {method === "pix" && <PixPanel pagamento={pix} />}
+                {method === "card" && <CardPanel />}
+              </>
+            )}
           </Box>
 
           <Box sx={{ width: { xs: "100%", md: 360 } }}>
@@ -334,16 +440,94 @@ export default function Pagamento() {
               </Typography>
               <Stack direction="row" sx={{ justifyContent: "space-between", mb: 1 }}>
                 <Typography sx={{ color: "#374151" }}>Guia turístico:</Typography>
-                <Typography sx={{ color: "#111827", fontWeight: 700 }}>R$ 120,00</Typography>
+                <Typography sx={{ color: "#111827", fontWeight: 700 }}>
+                  {reserva ? formatBRL(reserva.precoUnitario * reserva.quantidade) : "—"}
+                </Typography>
               </Stack>
               <Stack direction="row" sx={{ justifyContent: "space-between", mb: 1.5 }}>
                 <Typography sx={{ color: "#374151" }}>Extras:</Typography>
-                <Typography sx={{ color: "#111827", fontWeight: 700 }}>R$ 10,00</Typography>
+                <Typography sx={{ color: "#111827", fontWeight: 700 }}>
+                  {reserva ? formatBRL(reserva.extras) : "—"}
+                </Typography>
               </Stack>
+              <Box sx={{ bgcolor: "#fff7f2", border: "1px solid #f6d3b8", borderRadius: 2, p: 1.5, mb: 1.5 }}>
+                <Typography sx={{ color: NAVY, fontSize: 13, fontWeight: 800, mb: 1 }}>Cupom e cashback</Typography>
+                <Stack direction="row" spacing={1}>
+                  <TextField
+                    size="small"
+                    placeholder="BEMVINDO10"
+                    value={codigo}
+                    onChange={(event) => setCodigo(event.target.value.toUpperCase())}
+                    fullWidth
+                    sx={{ bgcolor: "#fff", borderRadius: 1 }}
+                  />
+                  <Button
+                    variant="contained"
+                    sx={{ textTransform: "none", fontWeight: 700, bgcolor: NAVY, boxShadow: "none", "&:hover": { bgcolor: "#162a4a" } }}
+                    onClick={() => {
+                      if (!id || !codigo.trim()) return;
+                      setErro(null);
+                      aplicarCupom(id, codigo.trim())
+                        .then(setCupom)
+                        .catch((error) => setErro(getApiErrorMessage(error, "Cupom inválido.")));
+                    }}
+                  >
+                    Aplicar
+                  </Button>
+                </Stack>
+                {cupom && (
+                  <Typography sx={{ color: "#15803d", fontSize: 13, mt: 1, fontWeight: 700 }}>
+                    {cupom.codigo} aplicado · −{formatBRL(cupom.desconto)}
+                  </Typography>
+                )}
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => cashback > 0 && setUsarCashback((atual) => !atual)}
+                  sx={{
+                    mt: 1.2,
+                    width: "100%",
+                    textAlign: "left",
+                    border: usarCashback ? `1px solid ${ORANGE}` : "1px solid #e5e7eb",
+                    bgcolor: usarCashback ? "#fff" : "#fff",
+                    borderRadius: 1.5,
+                    px: 1.2,
+                    py: 1,
+                    cursor: cashback > 0 ? "pointer" : "default",
+                    opacity: cashback > 0 ? 1 : 0.6,
+                  }}
+                >
+                  <Typography sx={{ color: NAVY, fontSize: 13, fontWeight: 700 }}>
+                    {usarCashback ? "Cashback será usado" : "Usar cashback"}
+                  </Typography>
+                  <Typography sx={{ color: "#6b7280", fontSize: 12 }}>Saldo disponível: {formatBRL(cashback)}</Typography>
+                </Box>
+              </Box>
+              {(pix?.desconto ?? cupom?.desconto ?? 0) > 0 && (
+                <Stack direction="row" sx={{ justifyContent: "space-between", mb: 1 }}>
+                  <Typography sx={{ color: "#374151" }}>Desconto:</Typography>
+                  <Typography sx={{ color: "#15803d", fontWeight: 700 }}>
+                    −{formatBRL(pix?.desconto ?? cupom?.desconto ?? 0)}
+                  </Typography>
+                </Stack>
+              )}
+              {(pix?.cashbackAplicado ?? 0) > 0 && (
+                <Stack direction="row" sx={{ justifyContent: "space-between", mb: 1 }}>
+                  <Typography sx={{ color: "#374151" }}>Cashback:</Typography>
+                  <Typography sx={{ color: "#15803d", fontWeight: 700 }}>−{formatBRL(pix?.cashbackAplicado ?? 0)}</Typography>
+                </Stack>
+              )}
+              {usarCashback && !pix?.cashbackAplicado && (
+                <Typography sx={{ color: "#6b7280", fontSize: 12, mb: 1 }}>
+                  O cashback entra no total quando o PIX é gerado.
+                </Typography>
+              )}
               <Divider sx={{ mb: 1.5 }} />
               <Stack direction="row" sx={{ justifyContent: "space-between" }}>
                 <Typography sx={{ fontWeight: 800, fontSize: 18 }}>Total:</Typography>
-                <Typography sx={{ color: ORANGE, fontWeight: 800, fontSize: 18 }}>R$ 130,00</Typography>
+                <Typography sx={{ color: ORANGE, fontWeight: 800, fontSize: 18 }}>
+                  {reserva || pix?.total != null || cupom ? formatBRL(pix?.total ?? cupom?.total ?? reserva?.total ?? 0) : "—"}
+                </Typography>
               </Stack>
             </Card>
           </Box>

@@ -1,172 +1,322 @@
 "use client";
 
-import { Avatar, Box, Button, Container, Divider, IconButton, LinearProgress, Rating, Stack, Typography } from "@mui/material";
-import { Heart, Star } from 'lucide-react';
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Clock, Flag, Heart, Languages, MapPin, Route, Star, Users } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/layout/AppHeader";
-
-const ORANGE = "#F47B2A";
-
-const ratings = [
-  { label: "Excelente", value: 92 },
-  { label: "Muito bom", value: 18 },
-  { label: "Razoável", value: 4 },
-  { label: "Ruim", value: 10 },
-  { label: "Horrível", value: 2 },
-];
-
-const reviews = [
-  {
-    name: "Anthony C",
-    text: "Excursão de um dia fantástico com o nosso guia Samuel! Aprendemos muito e nos divertimos muito! Recomendamos vivamente este tour.",
-    date: "mar. de 2026",
-  },
-  {
-    name: "Aris",
-    text: "Samuel foi incrível, ele é muito informado e tem uma paixão pelo que faz. Ele é muito útil e assegurou que todos nos sentimos seguros e confortáveis durante todo o passeio. Eu definitivamente vou indicar para familiares.",
-    date: "nov. de 2025",
-  },
-];
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { getApiErrorMessage } from "@/services/auth";
+import {
+  avaliacoesRoteiro,
+  denunciarRoteiro,
+  desfavoritar,
+  detalheRoteiro,
+  favoritar,
+  formatBRL,
+  type AvaliacoesRoteiro,
+  type RoteiroDetalhe,
+} from "@/services/dominio";
 
 export default function TelaAvaliacao() {
-  const router = useRouter()
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") || "";
+  const [roteiro, setRoteiro] = useState<RoteiroDetalhe | null>(null);
+  const [avaliacoes, setAvaliacoes] = useState<AvaliacoesRoteiro | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [favorito, setFavorito] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [denunciaAberta, setDenunciaAberta] = useState(false);
+  const [motivo, setMotivo] = useState("");
+
+  useEffect(() => {
+    if (!id) return;
+    detalheRoteiro(id)
+      .then(setRoteiro)
+      .catch(() => setRoteiro(null))
+      .finally(() => setCarregando(false));
+    avaliacoesRoteiro(id).then(setAvaliacoes).catch(() => setAvaliacoes(null));
+  }, [id]);
+
+  const alternarFavorito = () => {
+    if (!id) return;
+    const proximo = !favorito;
+    setFavorito(proximo);
+    const acao = proximo ? favoritar(id) : desfavoritar(id);
+    acao.catch(() => setFavorito(!proximo));
+  };
+
+  const enviarDenuncia = () => {
+    if (!id || !motivo.trim()) return;
+    denunciarRoteiro(id, motivo.trim())
+      .then(() => {
+        setAviso("Denúncia enviada. Vamos analisar.");
+        setDenunciaAberta(false);
+        setMotivo("");
+      })
+      .catch((error) => setAviso(getApiErrorMessage(error, "Não foi possível denunciar.")));
+  };
+
+  const ratings = avaliacoes?.distribuicao ?? [];
+  const maxBar = Math.max(1, ...ratings.map((item) => item.quantidade));
+  const nota = avaliacoes?.notaMedia ?? roteiro?.notaMedia ?? 0;
+  const totalAvaliacoes = avaliacoes?.total ?? roteiro?.totalAvaliacoes ?? 0;
+
+  if (carregando) {
+    return (
+      <div className="min-h-screen bg-[#f4f4f6] font-sans">
+        <AppHeader />
+        <main className="mx-auto w-full max-w-[1100px] space-y-6 p-4 md:p-6">
+          <div className="h-[320px] animate-pulse rounded-2xl bg-white" />
+          <div className="h-40 animate-pulse rounded-2xl bg-white" />
+        </main>
+      </div>
+    );
+  }
+
+  if (!roteiro) {
+    return (
+      <div className="min-h-screen bg-[#f4f4f6] font-sans">
+        <AppHeader />
+        <main className="mx-auto w-full max-w-[600px] p-6">
+          <div className="rounded-2xl border border-dashed border-border bg-white px-6 py-16 text-center">
+            <p className="font-bold text-[#1F3A66]">Roteiro não encontrado</p>
+            <p className="mt-1 text-sm text-muted-foreground">Ele pode ter saído do ar. Veja outras opções no catálogo.</p>
+            <Button onClick={() => router.push("/roteiros")} className="mt-4 rounded-full bg-[#F27420] font-bold hover:bg-[#d65f15]">
+              Ver roteiros
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
-    <Box sx={{ bgcolor: "#f4f4f6", minHeight: "100vh" }}>
+    <div className="min-h-screen bg-[#f4f4f6] font-sans">
       <AppHeader />
-      <Container maxWidth="lg" sx={{ py: 6 }}>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1.2fr 1fr" },
-            gap: 6,
-            alignItems: "start",
-          }}
-        >
-          <Box sx={{ position: "relative" }}>
-            <Box
-              component="img"
-              src={"https://vineadei.wordpress.com/wp-content/uploads/2021/06/images28129.jpeg?w=640"}
-              alt="Catedral da fé"
-              sx={{
-                width: "100%",
-                height: { xs: 280, md: 360 },
-                objectFit: "cover",
-                borderRadius: 2,
-                display: "block",
-              }}
+
+      <main className="mx-auto w-full max-w-[1100px] space-y-6 p-4 md:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <p className="truncate text-sm text-muted-foreground">
+            <button type="button" onClick={() => router.push("/roteiros")} className="hover:underline">
+              Catálogo
+            </button>
+            <span className="mx-1">/</span>
+            <span className="font-semibold text-[#F27420]">{roteiro.titulo}</span>
+          </p>
+          <Button variant="outline" className="rounded-full" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Button>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
+          <div className="relative overflow-hidden rounded-2xl bg-muted shadow-sm">
+            <img
+              src={roteiro.imageUrl || "/assets/hero.jpg"}
+              alt={roteiro.titulo}
+              className="h-[280px] w-full object-cover md:h-[380px]"
             />
-            <IconButton
-              sx={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                bgcolor: "#fff",
-                width: 48,
-                height: 48,
-                boxShadow: 2,
-                "&:hover": { bgcolor: "#f5f5f5" },
-              }}
+            <button
+              type="button"
+              onClick={alternarFavorito}
+              aria-label={favorito ? "Remover dos favoritos" : "Salvar nos favoritos"}
+              aria-pressed={favorito}
+              className="absolute right-4 top-4 rounded-full bg-white/95 p-3 shadow-md transition-transform hover:scale-105"
             >
-              <Heart />
-            </IconButton>
-          </Box>
+              <Heart className={`h-5 w-5 ${favorito ? "fill-red-500 text-red-500" : "text-[#1F3A66]"}`} />
+            </button>
+          </div>
 
-          <Stack spacing={3} sx={{ pt: { md: 4 } }}>
-            <Box>
-              <Typography variant="h3" sx={{ fontWeight: 800, color: "#111", fontSize: 36 }}>
-                Catedral da fé
-              </Typography>
-              <Stack direction="row" spacing={1} sx={{ alignItems: "center", mt: 1 }}>
-                <Typography sx={{ color: "#555" }}>Samuel Dantas · 5.0</Typography>
-                <Star />
-              </Stack>
-            </Box>
-            <Box sx={{ flexGrow: 1 }} />
-            <Box sx={{ display: "flex", justifyContent: { xs: "flex-start", md: "flex-start" } }}>
+          <div className="flex flex-col gap-5 rounded-2xl border border-border bg-white p-6 shadow-sm">
+            <div>
+              <Badge className="mb-3 bg-[#1F3A66]/10 capitalize text-[#1F3A66] hover:bg-[#1F3A66]/10">
+                {roteiro.categoria}
+              </Badge>
+              <h1 className="text-2xl font-bold leading-tight text-[#1F3A66] md:text-3xl">{roteiro.titulo}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/guias/${roteiro.guia.id}`)}
+                  className="font-semibold text-[#1F3A66] hover:underline"
+                >
+                  {roteiro.guia.nomeCompleto}
+                </button>
+                <span className="inline-flex items-center gap-1 font-bold text-[#F27420]">
+                  <Star className="h-4 w-4 fill-current" />
+                  {totalAvaliacoes > 0 ? `${nota} (${totalAvaliacoes})` : "Novo"}
+                </span>
+              </div>
+            </div>
+
+            <p className="leading-relaxed text-muted-foreground">{roteiro.descricao}</p>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <span className="inline-flex items-center gap-2 text-[#1F3A66]">
+                <MapPin className="h-4 w-4 text-[#F27420]" />
+                {roteiro.local}
+              </span>
+              <span className="inline-flex items-center gap-2 text-[#1F3A66]">
+                <Clock className="h-4 w-4 text-[#F27420]" />
+                {roteiro.duracao}
+              </span>
+              <span className="inline-flex items-center gap-2 text-[#1F3A66]">
+                <Route className="h-4 w-4 text-[#F27420]" />
+                {roteiro.distancia}
+              </span>
+              <span className="inline-flex items-center gap-2 text-[#1F3A66]">
+                <Users className="h-4 w-4 text-[#F27420]" />
+                até {roteiro.capacidade} pessoas
+              </span>
+              {roteiro.idioma && (
+                <span className="inline-flex items-center gap-2 text-[#1F3A66]">
+                  <Languages className="h-4 w-4 text-[#F27420]" />
+                  {roteiro.idioma}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">por pessoa</p>
+                <p className="text-3xl font-bold text-[#F27420]">{formatBRL(roteiro.preco)}</p>
+              </div>
               <Button
-                variant="contained"
-                sx={{
-                  bgcolor: ORANGE,
-                  color: "#fff",
-                  borderRadius: 999,
-                  px: 5,
-                  py: 1.6,
-                  fontSize: 16,
-                  fontWeight: 700,
-                  textTransform: "none",
-                  "&:hover": { bgcolor: "#e06d20" },
-                }}
-                onClick={() => router.push("/home/tela-avaliacao/detalhes")}
+                size="lg"
+                onClick={() => router.push(`/home/tela-avaliacao/detalhes?id=${id}`)}
+                className="rounded-full bg-[#F27420] px-8 font-bold hover:bg-[#d65f15]"
               >
-                Reserve Agora!
+                Reservar agora
               </Button>
-            </Box>
-          </Stack>
-        </Box>
+            </div>
+          </div>
+        </div>
 
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1.4fr" },
-            gap: 6,
-            mt: 8,
-          }}
-        >
-          <Box>
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 800,
-                color: "#111",
-                textDecoration: "underline",
-                textUnderlineOffset: 4,
-                mb: 3,
-              }}
+        {(roteiro.incluso?.length > 0 || roteiro.politicaCancelamento?.length > 0) && (
+          <div className="grid gap-6 md:grid-cols-2">
+            {roteiro.incluso?.length > 0 && (
+              <section className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+                <h2 className="mb-3 font-bold text-[#1F3A66]">O que está incluso</h2>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  {roteiro.incluso.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#F27420]" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {roteiro.politicaCancelamento?.length > 0 && (
+              <section className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+                <h2 className="mb-3 font-bold text-[#1F3A66]">Política de cancelamento</h2>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  {roteiro.politicaCancelamento.map((item) => (
+                    <li key={item} className="flex gap-2">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#1F3A66]" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        )}
+
+        <section className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-[#1F3A66]">Avaliações</h2>
+
+          {totalAvaliacoes === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Este roteiro ainda não recebeu avaliações. Seja a primeira pessoa a contar como foi.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-8 md:grid-cols-[260px_1fr]">
+              <div>
+                <div className="flex items-end gap-2">
+                  <span className="text-4xl font-bold text-[#1F3A66]">{nota}</span>
+                  <span className="pb-1 text-sm text-muted-foreground">
+                    {totalAvaliacoes} {totalAvaliacoes === 1 ? "avaliação" : "avaliações"}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {ratings.map((item) => (
+                    <div key={item.label} className="flex items-center gap-3">
+                      <span className="w-20 shrink-0 text-xs text-muted-foreground">{item.label}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-[#F27420]"
+                          style={{ width: `${(item.quantidade / maxBar) * 100}%` }}
+                        />
+                      </div>
+                      <span className="w-6 text-right text-xs font-semibold text-[#1F3A66]">{item.quantidade}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <ul className="divide-y divide-border">
+                {(avaliacoes?.comentarios ?? []).map((comentario) => (
+                  <li key={comentario.id} className="py-4 first:pt-0 last:pb-0">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1F3A66]/10 text-sm font-bold text-[#1F3A66]">
+                        {comentario.autor.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-[#1F3A66]">{comentario.autor}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(comentario.criadoEm).toLocaleDateString("pt-BR")}
+                        </p>
+                      </div>
+                      <span className="ml-auto inline-flex items-center gap-1 text-sm font-bold text-[#F27420]">
+                        <Star className="h-3.5 w-3.5 fill-current" />
+                        {comentario.nota}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{comentario.texto}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+
+        <div className="pb-6">
+          {aviso && <p className="mb-3 text-sm font-semibold text-[#1F3A66]">{aviso}</p>}
+          {denunciaAberta ? (
+            <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+              <h3 className="font-bold text-[#1F3A66]">Denunciar este roteiro</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Conte o que aconteceu. Nossa equipe analisa cada denúncia.</p>
+              <Textarea
+                value={motivo}
+                onChange={(event) => setMotivo(event.target.value)}
+                rows={3}
+                placeholder="Descreva o problema"
+                className="mt-3"
+              />
+              <div className="mt-3 flex gap-2">
+                <Button onClick={enviarDenuncia} disabled={!motivo.trim()} className="bg-[#1F3A66] hover:bg-[#152847]">
+                  Enviar denúncia
+                </Button>
+                <Button variant="ghost" onClick={() => setDenunciaAberta(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setDenunciaAberta(true)}
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-red-600"
             >
-              Avaliações
-            </Typography>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
-              <Typography sx={{ fontWeight: 700 }}>5.0</Typography>
-              <Rating value={5} readOnly size="small" sx={{ color: ORANGE }} />
-              <Typography sx={{ color: "#555" }}>(427)</Typography>
-            </Stack>
-            <Stack spacing={1.2}>
-              {ratings.map((r) => (
-                <Stack key={r.label} direction="row" spacing={2} sx={{ alignItems: "center" }}>
-                  <Typography sx={{ width: 90, fontSize: 14, color: "#222" }}>
-                    {r.label}
-                  </Typography>
-                  <LinearProgress
-                    variant="determinate"
-                    value={r.value}
-                    sx={{
-                      flexGrow: 1,
-                      height: 8,
-                      borderRadius: 4,
-                      bgcolor: "#eee",
-                      "& .MuiLinearProgress-bar": { bgcolor: ORANGE },
-                    }}
-                  />
-                </Stack>
-              ))}
-            </Stack>
-          </Box>
-
-          <Stack spacing={2} divider={<Divider />}>
-            {reviews.map((rev) => (
-              <Stack key={rev.name} spacing={1} sx={{ pt: 2 }}>
-                <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-                  <Avatar sx={{ width: 32, height: 32 }}>{rev.name[0]}</Avatar>
-                  <Typography sx={{ fontWeight: 700 }}>{rev.name}</Typography>
-                </Stack>
-                <Typography sx={{ color: "#222", lineHeight: 1.5 }}>{rev.text}</Typography>
-                <Typography sx={{ color: "#666", fontSize: 14 }}>{rev.date}</Typography>
-              </Stack>
-            ))}
-          </Stack>
-        </Box>
-      </Container>
-    </Box>
+              <Flag className="h-4 w-4" />
+              Denunciar este roteiro
+            </button>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }

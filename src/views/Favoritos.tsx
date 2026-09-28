@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Search, Star, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Heart, Plus, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/layout/AppHeader";
 import SearchBar from "@/components/layout/SearchBar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-
-const imgPanteao = "/assets/Excursao_Guiada.jpg";
+import { desfavoritar, favoritar, listarFavoritos, listarRoteiros, type Favorito } from "@/services/dominio";
 
 interface Passeio {
   id: string;
@@ -17,95 +15,132 @@ interface Passeio {
   imageUrl: string;
 }
 
-const TITULO_PADRAO = "Panteão Pátria Liberdade";
-const DESCRICAO_PADRAO =
-  "Um espaço moderno e imponente, marcado por arquitetura única com formas angulares e contemporâneas. Ideal para quem aprecia design inovador e busca um ponto turístico diferenciado.";
-
-const FAVORITOS_INICIAIS: Passeio[] = Array.from({ length: 6 }, (_, i) => ({
-  id: String(i + 1),
-  titulo: TITULO_PADRAO,
-  descricao: DESCRICAO_PADRAO,
-  imageUrl: imgPanteao,
-}));
-
 function ModalBusca({
+  jaSalvos,
   onClose,
   onAdicionar,
 }: {
+  jaSalvos: string[];
   onClose: () => void;
   onAdicionar: (p: Passeio) => void;
 }) {
   const [busca, setBusca] = useState("");
+  const [resultados, setResultados] = useState<Passeio[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
-  const resultados = Array.from({ length: 3 }, (_, i) => ({
-    id: String(10 + i),
-    titulo: TITULO_PADRAO,
-    descricao: DESCRICAO_PADRAO,
-    imageUrl: imgPanteao,
-  })).filter((p) => busca === "" || p.titulo.toLowerCase().includes(busca.toLowerCase()));
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCarregando(true);
+      listarRoteiros({ q: busca })
+        .then((data) =>
+          setResultados(
+            data.items.map((item) => ({
+              id: item.id,
+              titulo: item.titulo,
+              descricao: item.descricao,
+              imageUrl: item.imageUrl || "",
+            }))
+          )
+        )
+        .catch(() => setResultados([]))
+        .finally(() => setCarregando(false));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [busca]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <Card className="w-full max-w-[600px] overflow-hidden shadow-2xl animate-fade-in">
-        <div className="relative border-b p-5">
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#1F3A66]/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1F3A66]">Salvar um roteiro</h2>
+            <p className="text-sm text-muted-foreground">Busque pelo nome ou pelo local do passeio.</p>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 text-muted-foreground hover:text-foreground"
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Fechar"
           >
             <X className="h-5 w-5" />
           </button>
-          <div className="flex items-center overflow-hidden rounded-lg bg-[#1F3A66]">
+        </div>
+
+        <div className="px-5 py-4">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-[#f4f4f6] px-4">
+            <Search className="h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar pelo nome ou local..."
-              className="flex-1 bg-transparent px-4 py-2.5 text-sm text-white placeholder-white/60 outline-none"
+              placeholder="Bike Tour, Brasília, trilha..."
+              className="h-11 flex-1 bg-transparent text-sm outline-none"
+              autoFocus
             />
-            <button type="button" className="px-4 py-2.5 text-white/80 hover:text-white">
-              <Search className="h-4 w-4" />
-            </button>
           </div>
         </div>
 
-        <div className="flex max-h-[400px] flex-col gap-3 overflow-y-auto p-5">
-          {resultados.map((passeio) => (
-            <div
-              key={passeio.id}
-              className="flex items-start gap-4 rounded-xl border-2 border-[#F27420] p-3"
-            >
-              <img
-                src={passeio.imageUrl}
-                alt={passeio.titulo}
-                className="mt-1 h-16 w-16 shrink-0 rounded-full object-cover"
-              />
-              <div className="min-w-0 flex-1">
-                <h4 className="mb-1 text-sm font-bold">{passeio.titulo}</h4>
-                <p className="text-xs leading-relaxed text-muted-foreground">{passeio.descricao}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onAdicionar(passeio);
-                  onClose();
-                }}
-                className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F27420] transition-colors hover:bg-[#d65f15]"
-                aria-label="Adicionar aos favoritos"
-              >
-                <Star className="h-5 w-5 fill-white text-white" />
-              </button>
-            </div>
-          ))}
-        </div>
+        <div className="flex-1 space-y-3 overflow-y-auto px-5 pb-5">
+          {carregando &&
+            [0, 1, 2].map((item) => (
+              <div key={item} className="h-24 animate-pulse rounded-2xl bg-muted" />
+            ))}
 
-        <div className="p-5 pt-0">
-          <Button onClick={onClose} className="w-full rounded-xl bg-[#F27420] font-bold hover:bg-[#d65f15]">
-            Voltar
-          </Button>
+          {!carregando &&
+            resultados.map((passeio) => {
+              const salvo = jaSalvos.includes(passeio.id);
+              return (
+                <article
+                  key={passeio.id}
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3"
+                >
+                  <img
+                    src={passeio.imageUrl || "/assets/hero.jpg"}
+                    alt=""
+                    className="h-20 w-24 shrink-0 rounded-xl object-cover"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h4 className="truncate text-sm font-bold text-[#1F3A66]">{passeio.titulo}</h4>
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      {passeio.descricao}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={salvo}
+                    onClick={() => {
+                      if (salvo) return;
+                      onAdicionar(passeio);
+                    }}
+                    className={
+                      salvo
+                        ? "shrink-0 rounded-full bg-green-100 font-bold text-green-700 hover:bg-green-100"
+                        : "shrink-0 rounded-full bg-[#F27420] font-bold hover:bg-[#d65f15]"
+                    }
+                  >
+                    <Heart className={`h-4 w-4 ${salvo ? "fill-current" : ""}`} />
+                    {salvo ? "Salvo" : "Salvar"}
+                  </Button>
+                </article>
+              );
+            })}
+
+          {!carregando && resultados.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-border px-4 py-12 text-center">
+              <p className="font-bold text-[#1F3A66]">Nenhum roteiro encontrado</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {busca ? `Não achamos nada para “${busca}”.` : "Os passeios do catálogo aparecem aqui."}
+              </p>
+            </div>
+          )}
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
@@ -114,14 +149,36 @@ export default function Favoritos() {
   const router = useRouter();
   const [modalAberto, setModalAberto] = useState(false);
   const [busca, setBusca] = useState("");
-  const [favoritos, setFavoritos] = useState<Passeio[]>(FAVORITOS_INICIAIS);
+  const [favoritos, setFavoritos] = useState<Passeio[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    listarFavoritos()
+      .then((data) =>
+        setFavoritos(
+          data.items.map((item: Favorito) => ({
+            id: item.roteiroId,
+            titulo: item.titulo,
+            descricao: item.descricao,
+            imageUrl: item.imageUrl || "",
+          }))
+        )
+      )
+      .catch(() => setFavoritos([]))
+      .finally(() => setCarregando(false));
+  }, []);
 
   const handleDesfavoritar = (id: string) => {
-    setFavoritos((prev) => prev.filter((f) => f.id !== id));
+    desfavoritar(id)
+      .then(() => setFavoritos((prev) => prev.filter((f) => f.id !== id)))
+      .catch(() => undefined);
   };
 
   const handleAdicionar = (passeio: Passeio) => {
-    setFavoritos((prev) => [...prev, { ...passeio, id: String(Date.now()) }]);
+    if (favoritos.some((item) => item.id === passeio.id)) return;
+    favoritar(passeio.id)
+      .then(() => setFavoritos((prev) => (prev.some((item) => item.id === passeio.id) ? prev : [...prev, passeio])))
+      .catch(() => undefined);
   };
 
   const favoritosFiltrados = favoritos.filter((f) =>
@@ -132,71 +189,113 @@ export default function Favoritos() {
     <div className="flex min-h-screen flex-col bg-[#f4f4f6] font-sans">
       <AppHeader activePage="favoritos" />
 
-      <main className="mx-auto flex w-full max-w-[1100px] flex-col gap-5 p-6">
-        <div>
-          <h1 className="text-2xl font-bold">Meus Favoritos</h1>
-          <p className="text-sm text-muted-foreground">Passeios salvos para consultar depois</p>
+      <main className="mx-auto flex w-full max-w-[1100px] flex-col gap-6 p-4 md:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1F3A66]">Meus favoritos</h1>
+            <p className="text-sm text-muted-foreground">
+              {carregando
+                ? "Carregando os passeios salvos..."
+                : favoritos.length === 0
+                ? "Passeios que você quer fazer depois"
+                : `${favoritos.length} ${favoritos.length === 1 ? "passeio salvo" : "passeios salvos"}`}
+            </p>
+          </div>
+          <Button
+            onClick={() => setModalAberto(true)}
+            className="rounded-full bg-[#F27420] font-bold hover:bg-[#d65f15]"
+          >
+            <Plus className="h-4 w-4" />
+            Adicionar
+          </Button>
         </div>
 
-        <SearchBar value={busca} onChange={setBusca} placeholder="Buscar favoritos..." />
+        <SearchBar value={busca} onChange={setBusca} placeholder="Buscar nos favoritos..." />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {favoritosFiltrados.map((favorito) => (
-            <Card key={favorito.id} className="overflow-hidden shadow-sm transition-shadow hover:shadow-md">
-              <CardContent className="flex gap-3 p-4">
-                <img
-                  src={favorito.imageUrl}
-                  alt={favorito.titulo}
-                  className="h-14 w-14 shrink-0 rounded-full object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <h3 className="mb-1 text-sm font-bold">{favorito.titulo}</h3>
-                  <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+        {carregando && (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="h-72 animate-pulse rounded-2xl bg-white" />
+            ))}
+          </div>
+        )}
+
+        {!carregando && favoritosFiltrados.length > 0 && (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {favoritosFiltrados.map((favorito) => (
+              <article
+                key={favorito.id}
+                className="group overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition-shadow hover:shadow-md"
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push(`/home/tela-avaliacao?id=${favorito.id}`)}
+                  className="relative block h-44 w-full overflow-hidden bg-muted"
+                  aria-label={`Abrir ${favorito.titulo}`}
+                >
+                  <img
+                    src={favorito.imageUrl || "/assets/hero.jpg"}
+                    alt={favorito.titulo}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <span className="absolute inset-0 bg-gradient-to-t from-[#1F3A66]/50 to-transparent" />
+                </button>
+                <div className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-bold leading-snug text-[#1F3A66]">{favorito.titulo}</h3>
+                    <button
+                      type="button"
+                      onClick={() => handleDesfavoritar(favorito.id)}
+                      className="shrink-0 rounded-full bg-red-50 p-2 text-red-500 transition-colors hover:bg-red-100"
+                      aria-label="Remover dos favoritos"
+                    >
+                      <Heart className="h-4 w-4 fill-current" />
+                    </button>
+                  </div>
+                  <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                     {favorito.descricao}
                   </p>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDesfavoritar(favorito.id)}
-                      className="text-xs"
-                    >
-                      Remover
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => router.push("/roteiros")}
-                      className="flex-1 bg-[#F27420] text-xs font-bold hover:bg-[#d65f15]"
-                    >
-                      Abrir
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={() => router.push(`/home/tela-avaliacao?id=${favorito.id}`)}
+                    className="w-full rounded-full bg-[#1F3A66] font-bold hover:bg-[#152847]"
+                  >
+                    Ver roteiro
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </article>
+            ))}
+          </div>
+        )}
 
-          <button
-            type="button"
-            onClick={() => setModalAberto(true)}
-            className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#F27420] p-6 text-[#F27420] transition-colors hover:bg-orange-50"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#F27420]">
-              <Plus className="h-5 w-5" />
+        {!carregando && favoritosFiltrados.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-border bg-white px-6 py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#F27420]/10 text-[#F27420]">
+              <Heart className="h-6 w-6" />
             </div>
-            <span className="text-sm font-bold">Adicionar favorito</span>
-          </button>
-        </div>
-
-        {favoritosFiltrados.length === 0 && busca && (
-          <p className="text-center text-sm text-muted-foreground">
-            Nenhum favorito encontrado para &quot;{busca}&quot;.
-          </p>
+            <p className="font-bold text-[#1F3A66]">
+              {busca ? "Nenhum favorito para esta busca" : "Você ainda não salvou nenhum passeio"}
+            </p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+              {busca
+                ? `Não achamos “${busca}” na sua lista. Tente outro nome ou adicione um roteiro novo.`
+                : "Toque no coração no catálogo ou adicione um roteiro aqui para consultar depois."}
+            </p>
+            <Button
+              onClick={() => (busca ? setBusca("") : setModalAberto(true))}
+              className="mt-5 rounded-full bg-[#F27420] font-bold hover:bg-[#d65f15]"
+            >
+              {busca ? "Limpar busca" : "Adicionar favorito"}
+            </Button>
+          </div>
         )}
       </main>
 
       {modalAberto && (
-        <ModalBusca onClose={() => setModalAberto(false)} onAdicionar={handleAdicionar} />
+        <ModalBusca
+          jaSalvos={favoritos.map((item) => item.id)}
+          onClose={() => setModalAberto(false)}
+          onAdicionar={handleAdicionar}
+        />
       )}
     </div>
   );

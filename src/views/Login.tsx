@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, Lock, Mail, MapPin, User, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { cadastro, getApiErrorMessage, login, type UserTipo } from "@/services/auth";
 
 const imgHero = "/assets/hero.jpg";
 
@@ -14,11 +15,70 @@ type Tab = "login" | "cadastro";
 
 export default function Login() {
   const router = useRouter();
+  const fotoRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("login");
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+
+  const [nomeCompleto, setNomeCompleto] = useState("");
+  const [emailCadastro, setEmailCadastro] = useState("");
+  const [senhaCadastro, setSenhaCadastro] = useState("");
+  const [tipo, setTipo] = useState<UserTipo>("TURISTA");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    const expired = localStorage.getItem("expiredSessionMessage");
+    if (expired) {
+      setAviso(expired);
+      localStorage.removeItem("expiredSessionMessage");
+    }
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/home");
+    setErro(null);
+    setLoading(true);
+    try {
+      const data = await login(email.trim(), senha);
+      if (!data.token) {
+        setErro(data.message || "Não foi possível entrar.");
+        return;
+      }
+      router.push(data.user?.tipo === "ADMIN" ? "/admin" : data.user?.tipo === "GUIA" ? "/meus-roteiros" : "/home");
+    } catch (error) {
+      setErro(getApiErrorMessage(error, "E-mail ou senha inválidos."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCadastro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro(null);
+    setLoading(true);
+    try {
+      const data = await cadastro({
+        nomeCompleto: nomeCompleto.trim(),
+        email: emailCadastro.trim(),
+        senha: senhaCadastro,
+        tipo,
+        foto,
+      });
+      if (data.token) {
+        router.push(data.user?.tipo === "GUIA" ? "/meus-roteiros" : "/home");
+        return;
+      }
+      router.push("/confirmacao-email");
+    } catch (error) {
+      setErro(getApiErrorMessage(error, "Não foi possível criar a conta."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,13 +129,27 @@ export default function Login() {
 
         <div className="flex flex-1 items-center justify-center px-6 py-8 sm:px-10">
           <div className="w-full max-w-md animate-fade-in">
+            {(erro || aviso) && (
+              <p
+                className={cn(
+                  "mb-6 rounded-lg px-4 py-3 text-sm",
+                  erro ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"
+                )}
+              >
+                {erro || aviso}
+              </p>
+            )}
+
             {/* Tabs */}
             <div className="mb-8 flex rounded-xl bg-muted p-1">
               {(["login", "cadastro"] as Tab[]).map((t) => (
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => {
+                    setTab(t);
+                    setErro(null);
+                  }}
                   className={cn(
                     "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all",
                     tab === t
@@ -102,11 +176,13 @@ export default function Login() {
                     <Label htmlFor="email">E-mail</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
+                        <Input
                         id="email"
                         type="email"
                         placeholder="seu@email.com"
                         className="pl-10"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         required
                       />
                     </div>
@@ -115,20 +191,23 @@ export default function Login() {
                     <Label htmlFor="senha">Senha</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
+                        <Input
                         id="senha"
                         type="password"
                         placeholder="••••••••"
                         className="pl-10"
+                        value={senha}
+                        onChange={(e) => setSenha(e.target.value)}
                         required
                       />
                     </div>
                   </div>
                   <Button
                     type="submit"
+                    disabled={loading}
                     className="mt-2 w-full rounded-xl bg-[#F27420] py-5 text-base font-bold hover:bg-[#d65f15]"
                   >
-                    Entrar
+                    {loading ? "Entrando..." : "Entrar"}
                   </Button>
                 </form>
 
@@ -153,25 +232,75 @@ export default function Login() {
                 </div>
 
                 {/* Upload de foto */}
+                <input
+                  ref={fotoRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setFoto(file);
+                    setFotoPreview((atual) => {
+                      if (atual) URL.revokeObjectURL(atual);
+                      return file ? URL.createObjectURL(file) : null;
+                    });
+                  }}
+                />
                 <button
                   type="button"
+                  onClick={() => fotoRef.current?.click()}
                   className="mb-6 flex w-full items-center gap-4 rounded-xl border-2 border-dashed border-border p-4 transition-colors hover:border-[#F27420]/50 hover:bg-orange-50/50"
                 >
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-muted">
-                    <Camera className="h-6 w-6 text-muted-foreground" />
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
+                    {fotoPreview ? (
+                      <img src={fotoPreview} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Camera className="h-6 w-6 text-muted-foreground" />
+                    )}
                   </div>
                   <div className="text-left">
                     <p className="text-sm font-semibold text-foreground">Foto de perfil</p>
-                    <p className="text-xs text-muted-foreground">Clique para fazer upload</p>
+                    <p className="text-xs text-muted-foreground">
+                      {foto ? foto.name : "Opcional · JPG, PNG ou WEBP até 5 MB"}
+                    </p>
                   </div>
                 </button>
 
-                <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                <form className="space-y-4" onSubmit={handleCadastro}>
+                  <div className="space-y-2">
+                    <Label>Tipo de conta</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(["TURISTA", "GUIA"] as UserTipo[]).map((opcao) => (
+                        <button
+                          key={opcao}
+                          type="button"
+                          onClick={() => setTipo(opcao)}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-sm font-semibold transition-colors",
+                            tipo === opcao
+                              ? "border-[#F27420] bg-orange-50 text-[#F27420]"
+                              : "border-border text-muted-foreground hover:bg-muted"
+                          )}
+                        >
+                          {opcao === "TURISTA" ? "Turista" : "Guia"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="nome">Nome completo</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="nome" type="text" placeholder="Seu nome" className="pl-10" />
+                      <Input
+                        id="nome"
+                        type="text"
+                        placeholder="Seu nome"
+                        className="pl-10"
+                        value={nomeCompleto}
+                        onChange={(e) => setNomeCompleto(e.target.value)}
+                        minLength={2}
+                        required
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -183,6 +312,9 @@ export default function Login() {
                         type="email"
                         placeholder="seu@email.com"
                         className="pl-10"
+                        value={emailCadastro}
+                        onChange={(e) => setEmailCadastro(e.target.value)}
+                        required
                       />
                     </div>
                   </div>
@@ -195,14 +327,19 @@ export default function Login() {
                         type="password"
                         placeholder="Mínimo 8 caracteres"
                         className="pl-10"
+                        value={senhaCadastro}
+                        onChange={(e) => setSenhaCadastro(e.target.value)}
+                        minLength={8}
+                        required
                       />
                     </div>
                   </div>
                   <Button
-                    type="button"
+                    type="submit"
+                    disabled={loading}
                     className="mt-2 w-full rounded-xl bg-[#F27420] py-5 text-base font-bold hover:bg-[#d65f15]"
                   >
-                    Criar conta
+                    {loading ? "Criando conta..." : "Criar conta"}
                   </Button>
                 </form>
 

@@ -1,94 +1,84 @@
 "use client";
 
-import { useState } from "react";
-import { Ban, Clock, DollarSign, Edit, Plus, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Ban, CalendarDays, Clock, Edit, Plus, Users } from "lucide-react";
 import GuidePanelLayout from "@/components/layout/GuidePanelLayout";
 import SearchBar from "@/components/layout/SearchBar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-const imgCatedral = "/assets/Catedral_da_fe.webp";
-
-interface Roteiro {
-  id: string;
-  titulo: string;
-  descricao: string;
-  duracao: string;
-  capacidade: number;
-  preco: number;
-  imageUrl: string;
-  ativo: boolean;
-}
+import { formatBRL, atualizarRoteiroGuia, criarRoteiroGuia, definirRoteiroAtivo, listarRoteirosGuia, obterPerfilGuia, type RoteiroGuia } from "@/services/dominio";
 
 export default function MeusRoteiros() {
+  const router = useRouter();
   const [busca, setBusca] = useState("");
+  const [roteiros, setRoteiros] = useState<RoteiroGuia[]>([]);
+  const [aprovado, setAprovado] = useState<boolean | null>(null);
 
-  const [roteiros, setRoteiros] = useState<Roteiro[]>([
-    {
-      id: "1",
-      titulo: "Catedral da Fé",
-      descricao:
-        "Mergulho na fé, história e arquitetura da Catedral da Fé, um dos marcos mais impressionantes da cidade.",
-      duracao: "1h",
-      capacidade: 5,
-      preco: 300,
-      imageUrl: imgCatedral,
-      ativo: true,
-    },
-    {
-      id: "2",
-      titulo: "Catedral da Fé",
-      descricao:
-        "Mergulho na fé, história e arquitetura da Catedral da Fé, um dos marcos mais impressionantes da cidade.",
-      duracao: "1h",
-      capacidade: 5,
-      preco: 300,
-      imageUrl: imgCatedral,
-      ativo: true,
-    },
-    {
-      id: "3",
-      titulo: "Catedral da Fé",
-      descricao:
-        "Mergulho na fé, história e arquitetura da Catedral da Fé, um dos marcos mais impressionantes da cidade.",
-      duracao: "1h",
-      capacidade: 5,
-      preco: 300,
-      imageUrl: imgCatedral,
-      ativo: true,
-    },
-    {
-      id: "4",
-      titulo: "Catedral da Fé",
-      descricao:
-        "Mergulho na fé, história e arquitetura da Catedral da Fé, um dos marcos mais impressionantes da cidade.",
-      duracao: "1h",
-      capacidade: 5,
-      preco: 300,
-      imageUrl: imgCatedral,
-      ativo: false,
-    },
-  ]);
-
-  const handleDesabilitar = (id: string) => {
-    setRoteiros((prev) => prev.map((r) => (r.id === id ? { ...r, ativo: !r.ativo } : r)));
+  const carregar = (q?: string) => {
+    listarRoteirosGuia(q).then((data) => setRoteiros(data.items)).catch(() => setRoteiros([]));
   };
 
-  const roteirosFiltrados = roteiros.filter((r) =>
-    r.titulo.toLowerCase().includes(busca.toLowerCase())
-  );
+  useEffect(() => {
+    carregar(busca);
+  }, [busca]);
+
+  useEffect(() => {
+    obterPerfilGuia()
+      .then((perfil) => setAprovado(perfil.aprovado))
+      .catch(() => setAprovado(null));
+  }, []);
+
+  const handleDesabilitar = (roteiro: RoteiroGuia) => {
+    definirRoteiroAtivo(roteiro.id, !roteiro.ativo).then(() => carregar(busca)).catch(() => undefined);
+  };
+
+  const handleEditar = (roteiro: RoteiroGuia) => {
+    const valor = window.prompt("Novo preço (R$)", String(roteiro.preco));
+    if (!valor) return;
+    const preco = Number(valor.replace(",", "."));
+    if (!Number.isFinite(preco) || preco <= 0) return;
+    atualizarRoteiroGuia(roteiro.id, { preco }).then(() => carregar(busca)).catch(() => undefined);
+  };
+
+  const handleCriar = () => {
+    const titulo = window.prompt("Título do roteiro");
+    if (!titulo) return;
+    criarRoteiroGuia({
+      titulo,
+      descricao: "Novo roteiro",
+      duracao: "1 h",
+      capacidade: 5,
+      preco: 100,
+      categoria: "cultural",
+      local: "Brasília / DF",
+    })
+      .then(() => carregar(busca))
+      .catch(() => undefined);
+  };
+
+  const roteirosFiltrados = roteiros;
 
   return (
     <GuidePanelLayout activeTab="roteiros">
       <div className="space-y-5">
         <div>
-          <h1 className="text-2xl font-bold">Meus Roteiros</h1>
-          <p className="text-sm text-muted-foreground">Gerencie os passeios que você oferece</p>
+          <h1 className="text-2xl font-bold text-[#1F3A66]">Meus roteiros</h1>
+          <p className="text-sm text-muted-foreground">Passeios que você oferece e a agenda de cada um</p>
         </div>
+
+        {aprovado === false && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <p className="font-bold text-amber-900">Conta em análise</p>
+            <p className="mt-1 text-sm text-amber-800">
+              Você poderá publicar roteiros depois que a administração liberar o acesso.
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <SearchBar value={busca} onChange={setBusca} placeholder="Buscar roteiros..." className="flex-1" />
-          <Button className="shrink-0 bg-[#F27420] font-bold hover:bg-[#d65f15]">
+          <Button onClick={handleCriar} disabled={aprovado === false} className="shrink-0 rounded-full bg-[#F27420] font-bold hover:bg-[#d65f15]">
             <Plus className="h-4 w-4" />
             Criar roteiro
           </Button>
@@ -98,57 +88,73 @@ export default function MeusRoteiros() {
           {roteirosFiltrados.map((roteiro) => (
             <article
               key={roteiro.id}
-              className={`flex flex-col gap-4 rounded-xl border bg-white p-4 shadow-sm transition-opacity sm:flex-row ${
-                roteiro.ativo ? "border-border opacity-100" : "border-border opacity-60"
+              className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:flex-row ${
+                roteiro.ativo ? "border-border" : "border-border opacity-60"
               }`}
             >
-              <div className="h-[110px] w-full shrink-0 overflow-hidden rounded-lg bg-muted sm:w-[160px]">
-                <img src={roteiro.imageUrl} alt={roteiro.titulo} className="h-full w-full object-cover" />
+              <div className="h-[140px] w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:w-[200px]">
+                <img src={roteiro.imageUrl || "/assets/hero.jpg"} alt={roteiro.titulo} className="h-full w-full object-cover" />
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col justify-between">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate text-base font-bold">{roteiro.titulo}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-base font-bold text-[#1F3A66]">{roteiro.titulo}</h3>
                     {!roteiro.ativo && (
                       <Badge variant="secondary" className="text-xs">
                         Inativo
                       </Badge>
                     )}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                  <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                     {roteiro.descricao}
                   </p>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-4">
+                <div className="mt-3 flex flex-wrap items-center gap-4">
                   <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                     <Clock className="h-3.5 w-3.5" /> {roteiro.duracao}
                   </span>
                   <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                     <Users className="h-3.5 w-3.5" /> {roteiro.capacidade} pessoas
                   </span>
-                  <span className="flex items-center gap-1 text-xs font-bold text-green-600">
-                    <DollarSign className="h-3.5 w-3.5" /> R$ {roteiro.preco}
-                  </span>
+                  <span className="text-sm font-bold text-[#1F3A66]">{formatBRL(roteiro.preco)}</span>
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-row gap-2 sm:w-[130px] sm:flex-col">
-                <Button variant="outline" size="sm" className="flex-1 text-xs">
-                  <Edit className="h-3.5 w-3.5" /> Editar
+              <div className="flex shrink-0 flex-row gap-2 sm:w-[150px] sm:flex-col">
+                <Button variant="outline" size="sm" className="flex-1 rounded-full text-xs" onClick={() => router.push(`/meus-roteiros/agenda?id=${roteiro.id}`)}>
+                  <CalendarDays className="h-3.5 w-3.5" /> Agenda
+                </Button>
+                <Button variant="outline" size="sm" className="flex-1 rounded-full text-xs" onClick={() => handleEditar(roteiro)}>
+                  <Edit className="h-3.5 w-3.5" /> Preço
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleDesabilitar(roteiro.id)}
-                  className="flex-1 border-red-200 text-xs text-red-500 hover:bg-red-50"
+                  onClick={() => handleDesabilitar(roteiro)}
+                  className={`flex-1 rounded-full text-xs ${roteiro.ativo ? "border-red-200 text-red-500 hover:bg-red-50" : ""}`}
                 >
                   <Ban className="h-3.5 w-3.5" />
-                  {roteiro.ativo ? "Desabilitar" : "Habilitar"}
+                  {roteiro.ativo ? "Desativar" : "Ativar"}
                 </Button>
               </div>
             </article>
           ))}
+
+          {roteirosFiltrados.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-border bg-white px-6 py-16 text-center">
+              <p className="font-bold text-[#1F3A66]">
+                {busca ? "Nenhum roteiro para esta busca" : "Você ainda não publicou um roteiro"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {busca
+                  ? "Tente outro título."
+                  : aprovado === false
+                  ? "Quando a conta for aprovada, o botão de criar fica liberado."
+                  : "Crie o primeiro passeio para aparecer no catálogo."}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </GuidePanelLayout>

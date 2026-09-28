@@ -1,1 +1,1 @@
-﻿export { default } from '@/views/Agendamentos';
+﻿export { default } from "@/views/MeusAgendamentos";

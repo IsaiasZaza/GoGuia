@@ -1,45 +1,65 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  CalendarDays,
+  Clock,
+  Coins,
   CreditCard,
   Gift,
-  Coins,
-  Ticket,
-  Calendar,
   MapPin,
-  CheckCircle2,
-  Wallet
+  Ticket,
+  Wallet,
 } from 'lucide-react';
+import { useRouter } from "next/navigation";
 
-// IMPORTAÇÃO DA SUA LOGO (Ajuste o caminho se necessário)
 import AppHeader from "@/components/layout/AppHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  carteiraTurista,
+  formatBRL,
+  labelStatus,
+  listarReservasTurista,
+  type CarteiraTurista,
+  type ReservaTuristaItem,
+  type StatusReserva,
+} from "@/services/dominio";
 
-// Tipagem para as próximas reservas do usuário
-interface Reservation {
-  id: string;
-  tourName: string;
-  date: string;
-  status: 'Confirmado' | 'Pago';
+const CORES: Record<StatusReserva, string> = {
+  AGUARDANDO_PAGAMENTO: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+  PENDENTE: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+  CONFIRMADA: "bg-green-100 text-green-700 hover:bg-green-100",
+  CONCLUIDA: "bg-[#1F3A66]/10 text-[#1F3A66] hover:bg-[#1F3A66]/10",
+  RECUSADA: "bg-red-100 text-red-700 hover:bg-red-100",
+  CANCELADA: "bg-muted text-muted-foreground hover:bg-muted",
+};
+
+function dataBr(iso: string) {
+  const data = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(data.getTime())) return iso;
+  return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export const CarteiraUsuario: React.FC = () => {
+  const router = useRouter();
+  const [carteira, setCarteira] = useState<CarteiraTurista>({
+    pagamentosRealizados: 0,
+    creditosPromocionais: 0,
+    cashback: 0,
+    vouchers: 0,
+  });
+  const [reservas, setReservas] = useState<ReservaTuristaItem[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
-  // Dados fictícios do Usuário (Turista)
-  const userFinancialData = {
-    totalPayments: 1540.00,
-    promoCredits: 50.00,
-    cashbackAccumulated: 32.40,
-    availableVouchers: 2
-  };
-
-  // Histórico de próximas reservas fornecido
-  const nextReservations: Reservation[] = [
-    { id: '1', tourName: 'City Tour Brasília', date: '20/06/2026', status: 'Confirmado' },
-    { id: '2', tourName: 'Chapada dos Veadeiros', date: '05/07/2026', status: 'Pago' },
-  ];
+  useEffect(() => {
+    carteiraTurista().then(setCarteira).catch(() => undefined);
+    listarReservasTurista()
+      .then((data) => setReservas(data.items))
+      .catch(() => setReservas([]))
+      .finally(() => setCarregando(false));
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f4f4f6] font-sans text-foreground">
@@ -49,102 +69,114 @@ export const CarteiraUsuario: React.FC = () => {
         <div className="flex items-center gap-3">
           <Wallet className="h-8 w-8 text-[#F27420]" />
           <div>
-            <h1 className="text-2xl font-bold lg:text-3xl">Minha Carteira</h1>
-            <p className="text-sm text-muted-foreground">Painel do turista</p>
+            <h1 className="text-2xl font-bold text-[#1F3A66] lg:text-3xl">Minha Carteira</h1>
+            <p className="text-sm text-muted-foreground">Saldos, benefícios e próximos passeios</p>
           </div>
         </div>
 
-        {/* 1. CARDS DE SALDO E BENEFÍCIOS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-          {/* Pagamentos Realizados (Destaque em Laranja igual ao layout) */}
-          <div className="relative overflow-hidden space-y-2 rounded-2xl bg-[#F27420] p-6 text-white shadow-sm">
-            <p className="text-sm font-medium opacity-90">Pagamentos Realizados</p>
-            <p className="text-3xl font-bold">R$ {userFinancialData.totalPayments.toFixed(2)}</p>
-            <div className="absolute right-4 bottom-4 opacity-10">
-              <CreditCard className="w-24 h-24" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="relative space-y-2 overflow-hidden rounded-2xl bg-[#F27420] p-6 text-white shadow-sm">
+            <p className="text-sm font-medium opacity-90">Pagamentos realizados</p>
+            <p className="text-3xl font-bold">{formatBRL(carteira.pagamentosRealizados)}</p>
+            <p className="text-xs opacity-80">Total já pago em passeios</p>
+            <div className="absolute bottom-4 right-4 opacity-10">
+              <CreditCard className="h-24 w-24" />
             </div>
           </div>
 
-          {/* Créditos Promocionais */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-2">
-            <div className="flex justify-between items-center text-gray-500">
-              <span className="text-sm font-medium">Créditos Promocionais</span>
+          <div className="space-y-2 rounded-2xl border border-border bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-sm font-medium">Créditos promocionais</span>
               <Gift className="h-5 w-5 text-[#F27420]" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">R$ {userFinancialData.promoCredits.toFixed(2)}</p>
-            <p className="text-xs text-green-600 font-medium">Expira em breve</p>
+            <p className="text-2xl font-bold text-[#1F3A66]">{formatBRL(carteira.creditosPromocionais)}</p>
+            <p className="text-xs text-muted-foreground">Abatidos no próximo pagamento</p>
           </div>
 
-          {/* Cashback Acumulado */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-2">
-            <div className="flex justify-between items-center text-gray-500">
-              <span className="text-sm font-medium">Cashback Acumulado</span>
-              <Coins className="w-5 h-5 text-amber-500" />
+          <div className="space-y-2 rounded-2xl border border-border bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-sm font-medium">Cashback acumulado</span>
+              <Coins className="h-5 w-5 text-amber-500" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">R$ {userFinancialData.cashbackAccumulated.toFixed(2)}</p>
-            <p className="text-xs text-gray-400">Saldo para usar no próximo passeio</p>
+            <p className="text-2xl font-bold text-[#1F3A66]">{formatBRL(carteira.cashback)}</p>
+            <p className="text-xs text-muted-foreground">Saldo para usar no próximo passeio</p>
           </div>
 
-          {/* Vouchers Disponíveis */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-2">
-            <div className="flex justify-between items-center text-gray-500">
-              <span className="text-sm font-medium">Vouchers Disponíveis</span>
-              <Ticket className="w-5 h-5 text-blue-500" />
+          <div className="space-y-2 rounded-2xl border border-border bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-sm font-medium">Vouchers disponíveis</span>
+              <Ticket className="h-5 w-5 text-blue-500" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">{userFinancialData.availableVouchers}</p>
-            <p className="text-xs text-gray-400">Cupons ativos na conta</p>
+            <p className="text-2xl font-bold text-[#1F3A66]">{carteira.vouchers}</p>
+            <p className="text-xs text-muted-foreground">Cupons ativos na conta</p>
           </div>
         </div>
 
-        {/* 2. ÁREA DE PRÓXIMAS RESERVAS DESTAQUE */}
         <Card className="shadow-sm">
-          <CardHeader className="flex-row items-center gap-3 space-y-0">
-            <Calendar className="h-6 w-6 text-[#F27420]" />
-            <div>
-              <CardTitle className="text-xl">Próximas reservas</CardTitle>
-              <p className="text-xs text-muted-foreground">Passeios confirmados para a sua viagem</p>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-3">
+              <CalendarDays className="h-6 w-6 text-[#F27420]" />
+              <div>
+                <CardTitle className="text-xl text-[#1F3A66]">Minhas reservas</CardTitle>
+                <p className="text-xs text-muted-foreground">Passeios reservados e realizados</p>
+              </div>
             </div>
+            <Button variant="outline" className="rounded-full" onClick={() => router.push("/agendamentos")}>
+              Ver todos
+            </Button>
           </CardHeader>
           <CardContent>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-600">
-              <thead className="bg-gray-50 text-xs text-gray-400 uppercase font-semibold">
-                <tr>
-                  <th className="py-3 px-6">Passeio</th>
-                  <th className="py-3 px-6">Data</th>
-                  <th className="py-3 px-6 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {nextReservations.map((reservation) => (
-                  <tr key={reservation.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-4 px-6 font-semibold text-gray-900 flex items-center gap-2">
-                      <MapPin className="h-4 w-4 shrink-0 text-[#F27420]" />
-                      {reservation.tourName}
-                    </td>
-                    <td className="py-4 px-6 text-gray-600 font-medium">{reservation.date}</td>
-                    <td className="py-4 px-6 text-center">
-                      <Badge
-                        className={
-                          reservation.status === "Confirmado"
-                            ? "bg-green-100 text-green-700 hover:bg-green-100"
-                            : "bg-blue-100 text-blue-700 hover:bg-blue-100"
-                        }
-                      >
-                        <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                        {reservation.status}
-                      </Badge>
-                    </td>
-                  </tr>
+            {carregando && (
+              <div className="space-y-3">
+                {[0, 1, 2].map((item) => (
+                  <div key={item} className="h-14 animate-pulse rounded-lg bg-muted" />
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            )}
+
+            {!carregando && reservas.length > 0 && (
+              <ul className="divide-y divide-border">
+                {reservas.map((reserva) => (
+                  <li key={reserva.id} className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 font-semibold text-[#1F3A66]">
+                        <MapPin className="h-4 w-4 shrink-0 text-[#F27420]" />
+                        <span className="truncate">{reserva.roteiro}</span>
+                      </p>
+                      <p className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          {dataBr(reserva.data)}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5" />
+                          {reserva.horario}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="font-bold text-[#1F3A66]">{formatBRL(reserva.total)}</span>
+                      <Badge className={CORES[reserva.status]}>{labelStatus(reserva.status)}</Badge>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {!carregando && reservas.length === 0 && (
+              <div className="py-10 text-center">
+                <p className="font-semibold text-[#1F3A66]">Nenhuma reserva por aqui</p>
+                <p className="mt-1 text-sm text-muted-foreground">Escolha um roteiro e faça seu primeiro passeio.</p>
+                <Button
+                  onClick={() => router.push("/roteiros")}
+                  className="mt-4 rounded-full bg-[#F27420] font-bold hover:bg-[#d65f15]"
+                >
+                  Ver roteiros
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
-
       </main>
     </div>
   );
