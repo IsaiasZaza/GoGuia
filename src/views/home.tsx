@@ -220,12 +220,21 @@ export default function Home() {
   }, [mounted, user]);
 
   const passeiosFiltrados = useMemo(() => {
-    const lista =
-      categoriaAtiva === "todos"
-        ? todosPasseios
-        : todosPasseios.filter((item) => item.categoria === categoriaAtiva);
+    const normalizar = (valor: string) =>
+      valor
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const alvoLocal = normalizar(localFiltro);
+    const lista = todosPasseios.filter((item) => {
+      if (categoriaAtiva !== "todos" && item.categoria !== categoriaAtiva) return false;
+      if (alvoLocal && !normalizar(item.local ?? "").includes(alvoLocal)) return false;
+      return true;
+    });
     return lista.slice(0, 6);
-  }, [todosPasseios, categoriaAtiva]);
+  }, [todosPasseios, categoriaAtiva, localFiltro]);
 
   const buscar = (override?: { q?: string; local?: string; categoria?: string }) => {
     if (buscandoRedirect) return;
@@ -393,17 +402,26 @@ export default function Home() {
             {locaisDisponiveis.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-white/75">Destinos disponíveis:</span>
-                {locaisDisponiveis.slice(0, 5).map((local) => (
-                  <button
-                    key={local}
-                    type="button"
-                    onClick={() => buscar({ local })}
-                    className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white transition-colors hover:border-[#F27420] hover:bg-[#F27420] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F27420]"
-                  >
-                    <MapPin className="h-3 w-3" />
-                    {local}
-                  </button>
-                ))}
+                {locaisDisponiveis.slice(0, 6).map((local) => {
+                  const selecionado = localFiltro === local;
+                  return (
+                    <button
+                      key={local}
+                      type="button"
+                      onClick={() => setLocalFiltro(selecionado ? "" : local)}
+                      aria-pressed={selecionado}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F27420]",
+                        selecionado
+                          ? "border-[#F27420] bg-[#F27420] text-white shadow-sm"
+                          : "border-white/20 bg-white/10 text-white hover:border-[#F27420] hover:bg-[#F27420]"
+                      )}
+                    >
+                      <MapPin className="h-3 w-3" />
+                      {local}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -577,6 +595,23 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Barra de filtro ativa quando localização estiver selecionada */}
+          {localFiltro && (
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-orange-200/80 bg-orange-50/60 px-4 py-2.5 text-xs">
+              <span className="flex items-center gap-1.5 font-semibold text-[#1F3A66]">
+                <MapPin className="h-3.5 w-3.5 text-[#F27420]" />
+                Exibindo passeios em <strong className="font-extrabold text-[#F27420]">{localFiltro}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setLocalFiltro("")}
+                className="font-bold text-[#1F3A66] underline-offset-2 hover:text-[#F27420] hover:underline"
+              >
+                Mostrar todos os destinos
+              </button>
+            </div>
+          )}
+
           {carregando ? (
             <div
               className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
@@ -624,23 +659,30 @@ export default function Home() {
             <div className="rounded-2xl border border-dashed border-border bg-white px-6 py-14 text-center">
               <Compass className="mx-auto h-10 w-10 text-muted-foreground" />
               <p className="mt-3 text-base font-bold text-[#1F3A66]">
-                {categoriaAtiva === "todos"
+                {localFiltro
+                  ? `Nenhum roteiro encontrado em ${localFiltro}${
+                      categoriaAtiva !== "todos" ? ` na categoria ${LABEL_CATEGORIA[categoriaAtiva]}` : ""
+                    }`
+                  : categoriaAtiva === "todos"
                   ? "Nenhum roteiro publicado ainda"
                   : `Nenhum roteiro na categoria ${LABEL_CATEGORIA[categoriaAtiva]} no momento`}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {categoriaAtiva === "todos"
+                {categoriaAtiva === "todos" && !localFiltro
                   ? "Assim que os guias publicarem novos passeios, eles aparecerão aqui."
-                  : "Experimente visualizar todas as categorias ou buscar por outro destino."}
+                  : "Experimente limpar os filtros selecionados ou escolher outro destino."}
               </p>
-              {categoriaAtiva !== "todos" && (
+              {(categoriaAtiva !== "todos" || localFiltro) && (
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setCategoriaAtiva("todos")}
+                  onClick={() => {
+                    setCategoriaAtiva("todos");
+                    setLocalFiltro("");
+                  }}
                   className="mt-4 rounded-full font-semibold"
                 >
-                  Mostrar todas as categorias
+                  Limpar filtros
                 </Button>
               )}
             </div>

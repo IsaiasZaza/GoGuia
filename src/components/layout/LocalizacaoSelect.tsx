@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Compass, Loader2, MapPin, Search, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { listarLocalizacoes } from "@/services/dominio";
+import { listarLocalizacoes, type LocalizacaoDetalhe } from "@/services/dominio";
 
 interface LocalizacaoSelectProps {
   value: string;
@@ -32,7 +32,7 @@ export default function LocalizacaoSelect({
   variant = "default",
 }: LocalizacaoSelectProps) {
   const [open, setOpen] = useState(false);
-  const [locais, setLocais] = useState<string[]>([]);
+  const [locais, setLocais] = useState<LocalizacaoDetalhe[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [buscaInterna, setBuscaInterna] = useState("");
 
@@ -41,7 +41,7 @@ export default function LocalizacaoSelect({
     setCarregando(true);
     listarLocalizacoes()
       .then((data) => {
-        if (ativo) setLocais(data.items ?? []);
+        if (ativo) setLocais(data.detalhes ?? []);
       })
       .catch(() => {
         if (ativo) setLocais([]);
@@ -56,10 +56,11 @@ export default function LocalizacaoSelect({
 
   // Mantém o valor vindo da URL visível mesmo que não esteja na lista.
   const opcoes = useMemo(() => {
-    const base = value && !locais.includes(value) ? [value, ...locais] : locais;
+    const existe = locais.some((item) => item.nome === value);
+    const base = value && !existe ? [{ nome: value, totalRoteiros: 0 }, ...locais] : locais;
     if (!buscaInterna.trim()) return base;
     const termo = normalizar(buscaInterna);
-    return base.filter((item) => normalizar(item).includes(termo));
+    return base.filter((item) => normalizar(item.nome).includes(termo));
   }, [locais, value, buscaInterna]);
 
   const selecionar = (novoValor: string) => {
@@ -148,9 +149,9 @@ export default function LocalizacaoSelect({
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="w-[var(--radix-popover-trigger-width)] min-w-[260px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2 shadow-2xl"
+        className="w-[var(--radix-popover-trigger-width)] min-w-[270px] overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2 shadow-2xl"
       >
-        {locais.length > 3 && (
+        {locais.length > 2 && (
           <div className="relative mb-1.5 px-1 pt-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -195,15 +196,15 @@ export default function LocalizacaoSelect({
               Nenhuma localização encontrada.
             </div>
           ) : (
-            opcoes.map((local) => {
-              const ativo = value === local;
+            opcoes.map((item) => {
+              const ativo = value === item.nome;
               return (
                 <button
-                  key={local}
+                  key={item.nome}
                   type="button"
                   role="option"
                   aria-selected={ativo}
-                  onClick={() => selecionar(local)}
+                  onClick={() => selecionar(item.nome)}
                   className={cn(
                     "flex w-full items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs transition-colors",
                     ativo
@@ -211,16 +212,31 @@ export default function LocalizacaoSelect({
                       : "font-medium text-[#1F3A66] hover:bg-orange-50/70 hover:text-[#F27420]"
                   )}
                 >
-                  <span className="flex items-center gap-2.5 truncate">
+                  <span className="flex min-w-0 items-center gap-2.5">
                     <MapPin
                       className={cn(
                         "h-4 w-4 shrink-0",
                         ativo ? "text-[#F27420]" : "text-slate-400"
                       )}
                     />
-                    <span className="truncate">{local}</span>
+                    <span className="truncate">{item.nome}</span>
                   </span>
-                  {ativo && <Check className="h-4 w-4 shrink-0 text-[#F27420]" />}
+
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {item.totalRoteiros > 0 && (
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                          ativo
+                            ? "bg-[#F27420] text-white"
+                            : "bg-slate-100 text-slate-500"
+                        )}
+                      >
+                        {item.totalRoteiros}
+                      </span>
+                    )}
+                    {ativo && <Check className="h-4 w-4 shrink-0 text-[#F27420]" />}
+                  </span>
                 </button>
               );
             })

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Heart, Map, MapPin, Star, User } from "lucide-react";
+import { Clock, Heart, Map, MapPin, Star, User, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/layout/AppHeader";
 import { textoNota } from "@/components/AvaliacaoEstrelas";
@@ -94,11 +94,59 @@ export default function RoteirosScreen() {
             <SearchBar
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Buscar pelo nome ou local..."
+              placeholder="Buscar pelo nome, destino ou guia..."
               className="flex-1"
             />
-            <LocalizacaoSelect value={localFiltro} onChange={setLocalFiltro} className="md:w-[260px]" />
+            <LocalizacaoSelect value={localFiltro} onChange={setLocalFiltro} className="md:w-[270px]" />
           </div>
+
+          {(localFiltro || searchQuery.trim() || selectedCategory !== "TUDO") && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground">Filtros ativos:</span>
+              {selectedCategory !== "TUDO" && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory("TUDO")}
+                  className="inline-flex items-center gap-1 rounded-full bg-[#1F3A66]/10 px-3 py-1 text-xs font-bold text-[#1F3A66] hover:bg-[#1F3A66]/20"
+                >
+                  Categoria: {selectedCategory}
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {localFiltro && (
+                <button
+                  type="button"
+                  onClick={() => setLocalFiltro("")}
+                  className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-[#F27420] hover:bg-orange-100"
+                >
+                  <MapPin className="h-3 w-3" />
+                  {localFiltro}
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              {searchQuery.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="inline-flex items-center gap-1 rounded-full bg-slate-200/70 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                >
+                  Busca: &ldquo;{searchQuery.trim()}&rdquo;
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setLocalFiltro("");
+                  setSelectedCategory("TUDO");
+                }}
+                className="text-xs font-bold text-muted-foreground underline-offset-2 hover:text-[#F27420] hover:underline"
+              >
+                Limpar tudo
+              </button>
+            </div>
+          )}
 
           {!carregando && tours.length > 0 && (
             <p className="text-sm text-muted-foreground">

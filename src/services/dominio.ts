@@ -241,11 +241,20 @@ function normalizarBuscaLocal(valor: string) {
     .trim();
 }
 
-export async function listarLocalizacoes(): Promise<{ items: string[] }> {
+export interface LocalizacaoDetalhe {
+  nome: string;
+  totalRoteiros: number;
+}
+
+export async function listarLocalizacoes(): Promise<{ items: string[]; detalhes: LocalizacaoDetalhe[] }> {
   try {
-    const res = await api.get<{ items: string[] }>("/roteiros/localizacoes", publico);
+    const res = await api.get<{ items: string[]; detalhes?: LocalizacaoDetalhe[] }>("/roteiros/localizacoes", publico);
     if (Array.isArray(res?.items) && res.items.length > 0) {
-      return res;
+      const detalhes =
+        Array.isArray(res.detalhes) && res.detalhes.length > 0
+          ? res.detalhes
+          : res.items.map((nome) => ({ nome, totalRoteiros: 0 }));
+      return { items: res.items, detalhes };
     }
   } catch {
     // Fallback abaixo: extrai as localizações diretamente de GET /roteiros (ex.: backend de produção)
@@ -253,21 +262,24 @@ export async function listarLocalizacoes(): Promise<{ items: string[] }> {
 
   try {
     const todos = await api.get<{ items: RoteiroListaItem[] }>("/roteiros", publico);
-    const mapa = new Map<string, string>();
+    const mapa = new Map<string, LocalizacaoDetalhe>();
     for (const item of todos.items ?? []) {
       const limpo = item.local?.trim();
       if (!limpo) continue;
       const chave = normalizarBuscaLocal(limpo);
-      if (!mapa.has(chave)) {
-        mapa.set(chave, limpo);
+      const existente = mapa.get(chave);
+      if (existente) {
+        existente.totalRoteiros += 1;
+      } else {
+        mapa.set(chave, { nome: limpo, totalRoteiros: 1 });
       }
     }
-    const items = Array.from(mapa.values()).sort((a, b) =>
-      a.localeCompare(b, "pt-BR", { sensitivity: "base" })
+    const detalhes = Array.from(mapa.values()).sort((a, b) =>
+      a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" })
     );
-    return { items };
+    return { items: detalhes.map((d) => d.nome), detalhes };
   } catch {
-    return { items: [] };
+    return { items: [], detalhes: [] };
   }
 }
 
