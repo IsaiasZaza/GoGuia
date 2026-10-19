@@ -57,6 +57,34 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
+export function isLoggedIn(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!localStorage.getItem("token")) return false;
+  const expira = Number(localStorage.getItem("tempoSessao"));
+  return !expira || expira > Date.now();
+}
+
+/** Aceita só caminhos internos (`/algo`), para o login não virar um redirecionador aberto. */
+export function safeRedirect(valor: string | null | undefined): string | null {
+  if (!valor || !valor.startsWith("/")) return null;
+  if (valor.startsWith("//") || valor.startsWith("/\\")) return null;
+  if (valor === "/login") return null;
+  return valor;
+}
+
+export function loginUrl(redirect?: string | null, motivo?: string) {
+  const params = new URLSearchParams();
+  const destino = safeRedirect(redirect);
+  if (destino) params.set("redirect", destino);
+  if (motivo) params.set("motivo", motivo);
+  const texto = params.toString();
+  return texto ? `/login?${texto}` : "/login";
+}
+
+export function destinoPadrao(tipo?: UserTipo) {
+  return tipo === "ADMIN" ? "/admin" : tipo === "GUIA" ? "/meus-roteiros" : "/home";
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === "object") {
     const err = error as { message?: string; response?: { data?: { message?: string; errors?: Record<string, string> } } };

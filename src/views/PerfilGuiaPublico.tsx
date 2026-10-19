@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { MapPin, Star } from "lucide-react";
+import { rotuloNota } from "@/components/AvaliacaoEstrelas";
 import AppHeader from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, perfilGuiaPublico, type PerfilGuia } from "@/services/dominio";
@@ -54,7 +55,11 @@ export default function PerfilGuiaPublico() {
                   </p>
                   <p className="mt-3 inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold">
                     <Star className="h-4 w-4 fill-[#F27420] text-[#F27420]" />
-                    {perfil.notaMedia} · {perfil.totalAvaliacoes} avaliações
+                    {perfil.totalAvaliacoes > 0
+                      ? `${perfil.notaMedia.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} · ${perfil.totalAvaliacoes} ${
+                          perfil.totalAvaliacoes === 1 ? "avaliação" : "avaliações"
+                        } · ${rotuloNota(perfil.notaMedia)}`
+                      : "Sem avaliações ainda"}
                   </p>
                 </div>
               </div>

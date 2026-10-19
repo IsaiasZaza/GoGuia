@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Clock, Flag, Heart, Languages, MapPin, Route, Star, Users } from "lucide-react";
+import { ArrowLeft, Clock, Flag, Heart, Languages, MapPin, Route, Users } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/layout/AppHeader";
+import { Estrelas } from "@/components/AvaliacaoEstrelas";
+import AvaliacoesSecao from "@/components/AvaliacoesSecao";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useRequireLogin } from "@/hooks/use-require-login";
 import { getApiErrorMessage } from "@/services/auth";
 import {
   avaliacoesRoteiro,
@@ -21,6 +24,7 @@ import {
 
 export default function TelaAvaliacao() {
   const router = useRouter();
+  const exigirLogin = useRequireLogin();
   const searchParams = useSearchParams();
   const id = searchParams.get("id") || "";
   const [roteiro, setRoteiro] = useState<RoteiroDetalhe | null>(null);
@@ -42,10 +46,30 @@ export default function TelaAvaliacao() {
 
   const alternarFavorito = () => {
     if (!id) return;
+    const resultado = exigirLogin({ motivo: "Entre para salvar este passeio nos favoritos.", tipos: ["TURISTA"] });
+    if (resultado === "tipo-invalido") setAviso("Somente contas de turista podem usar favoritos.");
+    if (resultado !== "ok") return;
     const proximo = !favorito;
     setFavorito(proximo);
     const acao = proximo ? favoritar(id) : desfavoritar(id);
     acao.catch(() => setFavorito(!proximo));
+  };
+
+  const reservar = () => {
+    const resultado = exigirLogin({
+      motivo: "Entre para reservar este passeio.",
+      voltarPara: `/home/tela-avaliacao/detalhes?id=${id}`,
+      tipos: ["TURISTA"],
+    });
+    if (resultado === "tipo-invalido") {
+      setAviso("Somente contas de turista podem reservar passeios.");
+      return;
+    }
+    if (resultado === "ok") router.push(`/home/tela-avaliacao/detalhes?id=${id}`);
+  };
+
+  const abrirDenuncia = () => {
+    if (exigirLogin({ motivo: "Entre para denunciar este roteiro." }) === "ok") setDenunciaAberta(true);
   };
 
   const enviarDenuncia = () => {
@@ -53,14 +77,13 @@ export default function TelaAvaliacao() {
     denunciarRoteiro(id, motivo.trim())
       .then(() => {
         setAviso("Denúncia enviada. Vamos analisar.");
+        window.scrollTo({ top: 0, behavior: "smooth" });
         setDenunciaAberta(false);
         setMotivo("");
       })
       .catch((error) => setAviso(getApiErrorMessage(error, "Não foi possível denunciar.")));
   };
 
-  const ratings = avaliacoes?.distribuicao ?? [];
-  const maxBar = Math.max(1, ...ratings.map((item) => item.quantidade));
   const nota = avaliacoes?.notaMedia ?? roteiro?.notaMedia ?? 0;
   const totalAvaliacoes = avaliacoes?.total ?? roteiro?.totalAvaliacoes ?? 0;
 
@@ -112,6 +135,12 @@ export default function TelaAvaliacao() {
           </Button>
         </div>
 
+        {aviso && (
+          <p role="alert" className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+            {aviso}
+          </p>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
           <div className="relative overflow-hidden rounded-2xl bg-muted shadow-sm">
             <img
@@ -144,10 +173,22 @@ export default function TelaAvaliacao() {
                 >
                   {roteiro.guia.nomeCompleto}
                 </button>
-                <span className="inline-flex items-center gap-1 font-bold text-[#F27420]">
-                  <Star className="h-4 w-4 fill-current" />
-                  {totalAvaliacoes > 0 ? `${nota} (${totalAvaliacoes})` : "Novo"}
-                </span>
+                <a
+                  href="#titulo-avaliacoes"
+                  className="inline-flex items-center gap-1.5 font-bold text-[#F27420] hover:underline"
+                  aria-label={
+                    totalAvaliacoes > 0
+                      ? `Nota ${nota} com ${totalAvaliacoes} avaliações. Ver avaliações`
+                      : "Sem avaliações ainda"
+                  }
+                >
+                  <Estrelas nota={nota} />
+                  {totalAvaliacoes > 0
+                    ? `${nota.toLocaleString("pt-BR", { minimumFractionDigits: 1 })} · ${totalAvaliacoes} ${
+                        totalAvaliacoes === 1 ? "avaliação" : "avaliações"
+                      }`
+                    : "Sem avaliações ainda"}
+                </a>
               </div>
             </div>
 
@@ -185,7 +226,7 @@ export default function TelaAvaliacao() {
               </div>
               <Button
                 size="lg"
-                onClick={() => router.push(`/home/tela-avaliacao/detalhes?id=${id}`)}
+                onClick={reservar}
                 className="rounded-full bg-[#F27420] px-8 font-bold hover:bg-[#d65f15]"
               >
                 Reservar agora
@@ -225,66 +266,9 @@ export default function TelaAvaliacao() {
           </div>
         )}
 
-        <section className="rounded-2xl border border-border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-[#1F3A66]">Avaliações</h2>
-
-          {totalAvaliacoes === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">
-              Este roteiro ainda não recebeu avaliações. Seja a primeira pessoa a contar como foi.
-            </p>
-          ) : (
-            <div className="mt-4 grid gap-8 md:grid-cols-[260px_1fr]">
-              <div>
-                <div className="flex items-end gap-2">
-                  <span className="text-4xl font-bold text-[#1F3A66]">{nota}</span>
-                  <span className="pb-1 text-sm text-muted-foreground">
-                    {totalAvaliacoes} {totalAvaliacoes === 1 ? "avaliação" : "avaliações"}
-                  </span>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {ratings.map((item) => (
-                    <div key={item.label} className="flex items-center gap-3">
-                      <span className="w-20 shrink-0 text-xs text-muted-foreground">{item.label}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-[#F27420]"
-                          style={{ width: `${(item.quantidade / maxBar) * 100}%` }}
-                        />
-                      </div>
-                      <span className="w-6 text-right text-xs font-semibold text-[#1F3A66]">{item.quantidade}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <ul className="divide-y divide-border">
-                {(avaliacoes?.comentarios ?? []).map((comentario) => (
-                  <li key={comentario.id} className="py-4 first:pt-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1F3A66]/10 text-sm font-bold text-[#1F3A66]">
-                        {comentario.autor.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-[#1F3A66]">{comentario.autor}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(comentario.criadoEm).toLocaleDateString("pt-BR")}
-                        </p>
-                      </div>
-                      <span className="ml-auto inline-flex items-center gap-1 text-sm font-bold text-[#F27420]">
-                        <Star className="h-3.5 w-3.5 fill-current" />
-                        {comentario.nota}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{comentario.texto}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
+        <AvaliacoesSecao avaliacoes={avaliacoes} notaFallback={nota} totalFallback={totalAvaliacoes} />
 
         <div className="pb-6">
-          {aviso && <p className="mb-3 text-sm font-semibold text-[#1F3A66]">{aviso}</p>}
           {denunciaAberta ? (
             <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
               <h3 className="font-bold text-[#1F3A66]">Denunciar este roteiro</h3>
@@ -308,7 +292,7 @@ export default function TelaAvaliacao() {
           ) : (
             <button
               type="button"
-              onClick={() => setDenunciaAberta(true)}
+              onClick={abrirDenuncia}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-red-600"
             >
               <Flag className="h-4 w-4" />

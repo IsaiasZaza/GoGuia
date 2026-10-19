@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { cadastro, getApiErrorMessage, login, type UserTipo } from "@/services/auth";
+import { cadastro, destinoPadrao, getApiErrorMessage, login, safeRedirect, type UserTipo } from "@/services/auth";
 
 const imgHero = "/assets/hero.jpg";
 
@@ -36,8 +36,17 @@ export default function Login() {
     if (expired) {
       setAviso(expired);
       localStorage.removeItem("expiredSessionMessage");
+      return;
     }
+    const motivo = new URLSearchParams(window.location.search).get("motivo");
+    if (motivo) setAviso(motivo.slice(0, 160));
   }, []);
+
+  /** Volta para onde o usuário estava (`?redirect=`) ou vai para a página padrão do perfil. */
+  const irParaDestino = (tipoConta?: UserTipo) => {
+    const destino = safeRedirect(new URLSearchParams(window.location.search).get("redirect"));
+    router.push(destino ?? destinoPadrao(tipoConta));
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +58,7 @@ export default function Login() {
         setErro(data.message || "Não foi possível entrar.");
         return;
       }
-      router.push(data.user?.tipo === "ADMIN" ? "/admin" : data.user?.tipo === "GUIA" ? "/meus-roteiros" : "/home");
+      irParaDestino(data.user?.tipo);
     } catch (error) {
       setErro(getApiErrorMessage(error, "E-mail ou senha inválidos."));
     } finally {
@@ -70,7 +79,7 @@ export default function Login() {
         foto,
       });
       if (data.token) {
-        router.push(data.user?.tipo === "GUIA" ? "/meus-roteiros" : "/home");
+        irParaDestino(data.user?.tipo);
         return;
       }
       router.push("/confirmacao-email");

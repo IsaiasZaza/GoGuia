@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { Clock, Heart, Map, MapPin, Star, User } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "@/components/layout/AppHeader";
+import { textoNota } from "@/components/AvaliacaoEstrelas";
+import LocalizacaoSelect from "@/components/layout/LocalizacaoSelect";
 import SearchBar from "@/components/layout/SearchBar";
 import { Button } from "@/components/ui/button";
+import { useRequireLogin } from "@/hooks/use-require-login";
 import { cn } from "@/lib/utils";
 import { desfavoritar, favoritar, formatBRL, listarRoteiros, type RoteiroListaItem } from "@/services/dominio";
 
@@ -13,9 +16,11 @@ const CATEGORIES = ["TUDO", "Lazer", "Cultural", "Rural"] as const;
 
 export default function RoteirosScreen() {
   const router = useRouter();
+  const exigirLogin = useRequireLogin();
   const searchParams = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState<string>("TUDO");
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [localFiltro, setLocalFiltro] = useState(searchParams.get("local") || "");
   const [tours, setTours] = useState<RoteiroListaItem[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [favoritos, setFavoritos] = useState<Record<string, boolean>>({});
@@ -24,15 +29,25 @@ export default function RoteirosScreen() {
     const categoria = selectedCategory === "TUDO" ? undefined : selectedCategory.toLowerCase();
     setCarregando(true);
     const timer = window.setTimeout(() => {
-      listarRoteiros({ q: searchQuery, categoria })
+      listarRoteiros({ q: searchQuery, local: localFiltro, categoria })
         .then((data) => setTours(data.items))
         .catch(() => setTours([]))
         .finally(() => setCarregando(false));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, localFiltro]);
+
+  // Reflete os filtros na URL para poder compartilhar e voltar para a mesma busca.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) params.set("q", searchQuery.trim());
+    if (localFiltro) params.set("local", localFiltro);
+    const texto = params.toString();
+    window.history.replaceState(null, "", texto ? `/roteiros?${texto}` : "/roteiros");
+  }, [searchQuery, localFiltro]);
 
   const alternarFavorito = (id: string) => {
+    if (exigirLogin({ motivo: "Entre para salvar passeios nos favoritos.", tipos: ["TURISTA"] }) !== "ok") return;
     const proximo = !favoritos[id];
     setFavoritos((atual) => ({ ...atual, [id]: proximo }));
     const acao = proximo ? favoritar(id) : desfavoritar(id);
@@ -66,11 +81,15 @@ export default function RoteirosScreen() {
         </aside>
 
         <main className="flex min-w-0 flex-1 flex-col gap-5">
-          <SearchBar
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Buscar pelo nome ou local..."
-          />
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Buscar pelo nome ou local..."
+              className="flex-1"
+            />
+            <LocalizacaoSelect value={localFiltro} onChange={setLocalFiltro} className="md:w-[260px]" />
+          </div>
 
           {!carregando && tours.length > 0 && (
             <p className="text-sm text-muted-foreground">
@@ -120,9 +139,16 @@ export default function RoteirosScreen() {
                     <div>
                       <div className="flex items-start justify-between gap-3">
                         <h2 className="truncate text-lg font-bold text-[#1F3A66] md:text-xl">{tour.titulo}</h2>
-                        <span className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-[#F27420]">
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-[#F27420]"
+                          title={
+                            tour.totalAvaliacoes > 0
+                              ? `Nota ${tour.notaMedia} de 5, com ${tour.totalAvaliacoes} avaliações`
+                              : "Ainda sem avaliações"
+                          }
+                        >
                           <Star className="h-3.5 w-3.5 fill-current" />
-                          {tour.notaMedia > 0 ? tour.notaMedia : "Novo"}
+                          {textoNota(tour.notaMedia, tour.totalAvaliacoes)}
                         </span>
                       </div>
                       <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
@@ -171,15 +197,18 @@ export default function RoteirosScreen() {
                 <p className="font-bold text-[#1F3A66]">Nenhum roteiro encontrado</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {searchQuery
-                    ? `Não achamos nada para "${searchQuery}". Tente outra busca ou mude a categoria.`
+                    ? `Não achamos nada para "${searchQuery}". Tente outra busca, localização ou categoria.`
+                    : localFiltro
+                    ? `Ainda não há roteiros em ${localFiltro} nesta categoria.`
                     : "Mude a categoria para ver outros passeios."}
                 </p>
-                {(searchQuery || selectedCategory !== "TUDO") && (
+                {(searchQuery || localFiltro || selectedCategory !== "TUDO") && (
                   <Button
                     variant="outline"
                     className="mt-4 rounded-full"
                     onClick={() => {
                       setSearchQuery("");
+                      setLocalFiltro("");
                       setSelectedCategory("TUDO");
                     }}
                   >

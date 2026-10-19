@@ -24,11 +24,18 @@ class ApiService {
 
   private async handleResponse<T>(response: Response, skipAuth = false): Promise<T> {
     if (response.status === 401 && !skipAuth) {
+      const tinhaSessao = Boolean(localStorage.getItem('token'));
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('tempoSessao');
-      localStorage.setItem('expiredSessionMessage', 'Sessão expirada. Faça login novamente.');
-      window.location.href = '/login';
+      const voltar = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+      if (tinhaSessao) {
+        localStorage.setItem('expiredSessionMessage', 'Sessão expirada. Faça login novamente.');
+        window.location.href = `/login?redirect=${voltar}`;
+      } else {
+        const motivo = encodeURIComponent('Entre na sua conta para continuar.');
+        window.location.href = `/login?redirect=${voltar}&motivo=${motivo}`;
+      }
       throw new Error('Session expired');
     }
 

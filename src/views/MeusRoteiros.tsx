@@ -7,10 +7,15 @@ import GuidePanelLayout from "@/components/layout/GuidePanelLayout";
 import SearchBar from "@/components/layout/SearchBar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatBRL, atualizarRoteiroGuia, criarRoteiroGuia, definirRoteiroAtivo, listarRoteirosGuia, obterPerfilGuia, type RoteiroGuia } from "@/services/dominio";
+import CriarRoteiroDialog from "@/components/guia/CriarRoteiroDialog";
+import { useRequireLogin } from "@/hooks/use-require-login";
+import { formatBRL, atualizarRoteiroGuia, definirRoteiroAtivo, listarRoteirosGuia, obterPerfilGuia, type RoteiroGuia } from "@/services/dominio";
 
 export default function MeusRoteiros() {
   const router = useRouter();
+  const exigirLogin = useRequireLogin();
+  const [criando, setCriando] = useState(false);
+  const [avisoAcao, setAvisoAcao] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [roteiros, setRoteiros] = useState<RoteiroGuia[]>([]);
   const [aprovado, setAprovado] = useState<boolean | null>(null);
@@ -42,19 +47,19 @@ export default function MeusRoteiros() {
   };
 
   const handleCriar = () => {
-    const titulo = window.prompt("Título do roteiro");
-    if (!titulo) return;
-    criarRoteiroGuia({
-      titulo,
-      descricao: "Novo roteiro",
-      duracao: "1 h",
-      capacidade: 5,
-      preco: 100,
-      categoria: "cultural",
-      local: "Brasília / DF",
-    })
-      .then(() => carregar(busca))
-      .catch(() => undefined);
+    const resultado = exigirLogin({
+      motivo: "Entre como guia para registrar um roteiro.",
+      voltarPara: "/meus-roteiros",
+      tipos: ["GUIA"],
+    });
+    if (resultado === "tipo-invalido") {
+      setAvisoAcao("Somente contas de guia podem registrar roteiros.");
+      return;
+    }
+    if (resultado === "ok") {
+      setAvisoAcao(null);
+      setCriando(true);
+    }
   };
 
   const roteirosFiltrados = roteiros;
@@ -83,6 +88,14 @@ export default function MeusRoteiros() {
             Criar roteiro
           </Button>
         </div>
+
+        {avisoAcao && (
+          <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            {avisoAcao}
+          </p>
+        )}
+
+        <CriarRoteiroDialog aberto={criando} onOpenChange={setCriando} onCriado={() => carregar(busca)} />
 
         <div className="flex flex-col gap-4">
           {roteirosFiltrados.map((roteiro) => (

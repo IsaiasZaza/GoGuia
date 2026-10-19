@@ -91,8 +91,17 @@ export default function MeusAgendamentos() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <p className="text-xl font-bold text-[#1F3A66]">{formatBRL(reserva.total)}</p>
+                {reserva.guiaId && (
+                  <Button
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => router.push(`/guias/${reserva.guiaId}`)}
+                  >
+                    Perfil do guia
+                  </Button>
+                )}
                 {reserva.status === "AGUARDANDO_PAGAMENTO" && (
                   <Button
                     onClick={() => router.push(`/home/pagamento?id=${reserva.id}`)}

@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { Clock, Heart, MapPin, Search, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { textoNota } from "@/components/AvaliacaoEstrelas";
 import AppHeader from "@/components/layout/AppHeader";
+import LocalizacaoSelect from "@/components/layout/LocalizacaoSelect";
 import { Button } from "@/components/ui/button";
+import { useRequireLogin } from "@/hooks/use-require-login";
 import { Card, CardContent } from "@/components/ui/card";
 import { desfavoritar, favoritar, formatBRL, listarRoteiros, type RoteiroListaItem } from "@/services/dominio";
 
@@ -12,9 +15,11 @@ const imgHero = "/assets/hero.jpg";
 
 export default function Home() {
   const router = useRouter();
+  const exigirLogin = useRequireLogin();
   const [passeios, setPasseios] = useState<RoteiroListaItem[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
+  const [localFiltro, setLocalFiltro] = useState("");
   const [favoritos, setFavoritos] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -29,11 +34,15 @@ export default function Home() {
   }, []);
 
   const buscar = () => {
-    const termo = busca.trim();
-    router.push(termo ? `/roteiros?q=${encodeURIComponent(termo)}` : "/roteiros");
+    const params = new URLSearchParams();
+    if (busca.trim()) params.set("q", busca.trim());
+    if (localFiltro) params.set("local", localFiltro);
+    const texto = params.toString();
+    router.push(texto ? `/roteiros?${texto}` : "/roteiros");
   };
 
   const alternarFavorito = (id: string) => {
+    if (exigirLogin({ motivo: "Entre para salvar passeios nos favoritos.", tipos: ["TURISTA"] }) !== "ok") return;
     const proximo = !favoritos[id];
     setFavoritos((atual) => ({ ...atual, [id]: proximo }));
     const acao = proximo ? favoritar(id) : desfavoritar(id);
@@ -60,7 +69,7 @@ export default function Home() {
               event.preventDefault();
               buscar();
             }}
-            className="flex max-w-xl flex-col gap-3 sm:flex-row"
+            className="flex max-w-3xl flex-col gap-3 sm:flex-row"
           >
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -72,6 +81,7 @@ export default function Home() {
                 className="h-12 w-full rounded-full border-0 bg-white pl-11 pr-4 text-sm shadow-lg outline-none ring-[#F27420] focus:ring-2"
               />
             </div>
+            <LocalizacaoSelect value={localFiltro} onChange={setLocalFiltro} className="sm:w-[240px]" />
             <Button type="submit" size="lg" className="h-12 rounded-full bg-[#F27420] px-8 font-bold hover:bg-[#d65f15]">
               Buscar
             </Button>
@@ -147,7 +157,7 @@ export default function Home() {
                       <h5 className="font-bold leading-snug text-[#1F3A66]">{passeio.titulo}</h5>
                       <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-[#F27420]">
                         <Star className="h-3 w-3 fill-current" />
-                        {passeio.notaMedia > 0 ? passeio.notaMedia : "Novo"}
+                        {textoNota(passeio.notaMedia, passeio.totalAvaliacoes)}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">

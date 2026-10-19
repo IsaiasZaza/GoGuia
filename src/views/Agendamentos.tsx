@@ -6,11 +6,11 @@ import {
   Clock,
   Languages,
   MapPin,
-  MessagesSquare,
   Minus,
   Plus,
   Route,
   Star,
+  UserRound,
   Users,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -19,6 +19,7 @@ import Mapa from "@/components/Mapa";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRequireLogin } from "@/hooks/use-require-login";
 import { getApiErrorMessage } from "@/services/auth";
 import {
   criarReserva,
@@ -40,6 +41,7 @@ function hoje() {
 
 export default function Agendamentos() {
   const router = useRouter();
+  const exigirLogin = useRequireLogin();
   const searchParams = useSearchParams();
   const id = searchParams.get("id") || "";
 
@@ -94,6 +96,16 @@ export default function Agendamentos() {
 
   const reservar = async () => {
     if (!id || !data) return;
+    const resultado = exigirLogin({
+      motivo: "Entre para agendar este passeio.",
+      voltarPara: `/home/tela-avaliacao/detalhes?id=${id}`,
+      tipos: ["TURISTA"],
+    });
+    if (resultado === "tipo-invalido") {
+      setErro("Somente contas de turista podem agendar passeios.");
+      return;
+    }
+    if (resultado !== "ok") return;
     if (!horario) {
       setErro("Escolha um horário com vaga.");
       return;
@@ -392,8 +404,8 @@ export default function Agendamentos() {
                     className="rounded-full"
                     onClick={() => router.push(`/guias/${roteiro.guia.id}`)}
                   >
-                    <MessagesSquare className="h-4 w-4" />
-                    Falar com o guia
+                    <UserRound className="h-4 w-4" />
+                    Perfil do guia
                   </Button>
                   <Button
                     variant="outline"

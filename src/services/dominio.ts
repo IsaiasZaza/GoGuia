@@ -38,6 +38,7 @@ export interface RoteiroListaItem {
   preco: number;
   imageUrl: string | null;
   notaMedia: number;
+  totalAvaliacoes: number;
   guia: GuiaResumo;
 }
 
@@ -48,7 +49,6 @@ export interface RoteiroDetalhe extends RoteiroListaItem {
   idioma: string;
   incluso: string[];
   politicaCancelamento: string[];
-  totalAvaliacoes: number;
   paradas: Parada[];
 }
 
@@ -109,6 +109,7 @@ export interface Reserva {
 export interface ReservaTuristaItem {
   id: string;
   roteiro: string;
+  guiaId?: string;
   data: string;
   horario: string;
   quantidade: number;
@@ -232,10 +233,15 @@ function qs(params: Record<string, string | undefined>) {
   return text ? `?${text}` : "";
 }
 
-export function listarRoteiros(filtro: { q?: string; categoria?: string; destaque?: boolean } = {}) {
+export function listarLocalizacoes() {
+  return api.get<{ items: string[] }>("/roteiros/localizacoes", publico);
+}
+
+export function listarRoteiros(filtro: { q?: string; local?: string; categoria?: string; destaque?: boolean } = {}) {
   return api.get<{ items: RoteiroListaItem[] }>(
     `/roteiros${qs({
       q: filtro.q,
+      local: filtro.local,
       categoria: filtro.categoria,
       destaque: filtro.destaque ? "true" : undefined,
     })}`,
@@ -320,6 +326,7 @@ export function criarRoteiroGuia(dados: {
   categoria: CategoriaRoteiro;
   local: string;
   distancia?: string;
+  incluso?: string[];
 }) {
   return api.post<RoteiroDetalhe>("/guia/roteiros", dados);
 }
