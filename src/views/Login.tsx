@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Lock, Mail, MapPin, User, Users } from "lucide-react";
+import { ArrowLeft, Camera, Lock, Mail, MapPin, User, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,13 +32,23 @@ export default function Login() {
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab")?.toLowerCase();
+    if (tabParam === "cadastro" || tabParam === "register") {
+      setTab("cadastro");
+    }
+    const tipoParam = params.get("tipo")?.toUpperCase();
+    if (tipoParam === "GUIA" || tipoParam === "TURISTA") {
+      setTipo(tipoParam);
+    }
+
     const expired = localStorage.getItem("expiredSessionMessage");
     if (expired) {
       setAviso(expired);
       localStorage.removeItem("expiredSessionMessage");
       return;
     }
-    const motivo = new URLSearchParams(window.location.search).get("motivo");
+    const motivo = params.get("motivo");
     if (motivo) setAviso(motivo.slice(0, 160));
   }, []);
 
@@ -138,6 +148,17 @@ export default function Login() {
 
         <div className="flex flex-1 items-center justify-center px-6 py-8 sm:px-10">
           <div className="w-full max-w-md animate-fade-in">
+            <div className="mb-5">
+              <button
+                type="button"
+                onClick={() => router.push("/home")}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1F3A66] transition-colors hover:text-[#F27420]"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar para a página inicial
+              </button>
+            </div>
+
             {(erro || aviso) && (
               <p
                 className={cn(

@@ -14,11 +14,19 @@ import { desfavoritar, favoritar, formatBRL, listarRoteiros, type RoteiroListaIt
 
 const CATEGORIES = ["TUDO", "Lazer", "Cultural", "Rural"] as const;
 
+function parseCategoriaInicial(valor: string | null): string {
+  if (!valor) return "TUDO";
+  const encontrado = CATEGORIES.find((c) => c.toLowerCase() === valor.trim().toLowerCase());
+  return encontrado ?? "TUDO";
+}
+
 export default function RoteirosScreen() {
   const router = useRouter();
   const exigirLogin = useRequireLogin();
   const searchParams = useSearchParams();
-  const [selectedCategory, setSelectedCategory] = useState<string>("TUDO");
+  const [selectedCategory, setSelectedCategory] = useState<string>(() =>
+    parseCategoriaInicial(searchParams.get("categoria"))
+  );
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [localFiltro, setLocalFiltro] = useState(searchParams.get("local") || "");
   const [tours, setTours] = useState<RoteiroListaItem[]>([]);
@@ -42,9 +50,10 @@ export default function RoteirosScreen() {
     const params = new URLSearchParams();
     if (searchQuery.trim()) params.set("q", searchQuery.trim());
     if (localFiltro) params.set("local", localFiltro);
+    if (selectedCategory !== "TUDO") params.set("categoria", selectedCategory.toLowerCase());
     const texto = params.toString();
     window.history.replaceState(null, "", texto ? `/roteiros?${texto}` : "/roteiros");
-  }, [searchQuery, localFiltro]);
+  }, [searchQuery, localFiltro, selectedCategory]);
 
   const alternarFavorito = (id: string) => {
     if (exigirLogin({ motivo: "Entre para salvar passeios nos favoritos.", tipos: ["TURISTA"] }) !== "ok") return;
