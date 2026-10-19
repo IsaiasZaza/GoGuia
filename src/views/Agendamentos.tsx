@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { textoNota } from "@/components/AvaliacaoEstrelas";
 import AppHeader from "@/components/layout/AppHeader";
 import Mapa from "@/components/Mapa";
 import { Button } from "@/components/ui/button";
@@ -191,7 +192,7 @@ export default function Agendamentos() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Star className="h-4 w-4 fill-[#F27420] text-[#F27420]" />
-                  {roteiro.totalAvaliacoes > 0 ? `${roteiro.notaMedia} (${roteiro.totalAvaliacoes})` : "Novo"}
+                  {textoNota(roteiro.notaMedia, roteiro.totalAvaliacoes)}
                 </span>
               </div>
             </div>

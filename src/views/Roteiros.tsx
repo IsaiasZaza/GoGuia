@@ -151,8 +151,10 @@ export default function RoteirosScreen() {
                         <span
                           className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-[#F27420]"
                           title={
-                            tour.totalAvaliacoes > 0
+                            (tour.totalAvaliacoes ?? 0) > 0
                               ? `Nota ${tour.notaMedia} de 5, com ${tour.totalAvaliacoes} avaliações`
+                              : tour.notaMedia > 0
+                              ? `Nota ${tour.notaMedia} de 5`
                               : "Ainda sem avaliações"
                           }
                         >

@@ -10,10 +10,22 @@ export function rotuloNota(nota: number) {
   return "Sem avaliações";
 }
 
-/** "4,8 (12)" ou "Novo" quando ainda não há avaliações. */
-export function textoNota(nota: number, total: number) {
-  if (total <= 0) return "Novo";
-  return `${nota.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} (${total})`;
+/** "4,8 (12)", "4,8" (se total não vier da API) ou "Novo" quando ainda não há avaliações. */
+export function textoNota(nota?: number | null, total?: number | null) {
+  const notaValida = typeof nota === "number" && Number.isFinite(nota) ? nota : 0;
+  if (notaValida <= 0) return "Novo";
+
+  const notaFormatada = notaValida.toLocaleString("pt-BR", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+
+  if (typeof total === "number" && Number.isFinite(total)) {
+    if (total <= 0) return "Novo";
+    return `${notaFormatada} (${total})`;
+  }
+
+  return notaFormatada;
 }
 
 interface EstrelasProps {

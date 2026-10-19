@@ -346,24 +346,26 @@ export default function Home() {
                 buscar();
               }}
               aria-label="Buscar passeios turísticos"
-              className="mt-8 flex flex-col gap-2.5 rounded-2xl bg-white/95 p-2.5 shadow-2xl backdrop-blur-sm sm:flex-row sm:items-center sm:rounded-full sm:p-2"
+              className="mt-8 flex flex-col gap-2 rounded-3xl border border-white/25 bg-white p-2 shadow-2xl sm:flex-row sm:items-center sm:rounded-full sm:p-2"
             >
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={busca}
                   onChange={(event) => setBusca(event.target.value)}
                   placeholder="Busque por roteiro, destino ou guia..."
                   aria-label="Termo de busca"
-                  className="h-11 w-full rounded-full border-0 bg-transparent pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#F27420]"
+                  className="h-12 w-full rounded-full border-0 bg-transparent pl-11 pr-4 text-sm font-medium text-[#1F3A66] placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#F27420]/40"
                 />
               </div>
 
-              <div className="sm:w-[230px]">
+              <div className="hidden h-7 w-px bg-slate-200 sm:block" aria-hidden="true" />
+
+              <div className="sm:w-[250px]">
                 <LocalizacaoSelect
                   value={localFiltro}
                   onChange={setLocalFiltro}
-                  className="border-0 shadow-none sm:border-l sm:border-border sm:rounded-none"
+                  variant="inline"
                 />
               </div>
 
@@ -371,7 +373,7 @@ export default function Home() {
                 type="submit"
                 size="lg"
                 disabled={buscandoRedirect}
-                className="h-11 rounded-full bg-[#F27420] px-7 font-bold text-white shadow-md transition-all hover:bg-[#d65f15] disabled:opacity-70"
+                className="h-12 rounded-full bg-[#F27420] px-7 font-bold text-white shadow-md transition-all hover:bg-[#d65f15] disabled:opacity-70"
               >
                 {buscandoRedirect ? (
                   <>
@@ -712,8 +714,10 @@ export default function Home() {
                             <span
                               className="inline-flex shrink-0 items-center gap-1 rounded-md bg-orange-50 px-2 py-0.5 text-xs font-bold text-[#F27420]"
                               title={
-                                passeio.totalAvaliacoes > 0
+                                (passeio.totalAvaliacoes ?? 0) > 0
                                   ? `Nota ${passeio.notaMedia} de 5 (${passeio.totalAvaliacoes} avaliações)`
+                                  : passeio.notaMedia > 0
+                                  ? `Nota ${passeio.notaMedia} de 5`
                                   : "Roteiro ainda sem avaliações"
                               }
                             >

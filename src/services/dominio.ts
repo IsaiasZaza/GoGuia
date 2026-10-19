@@ -38,7 +38,7 @@ export interface RoteiroListaItem {
   preco: number;
   imageUrl: string | null;
   notaMedia: number;
-  totalAvaliacoes: number;
+  totalAvaliacoes?: number;
   guia: GuiaResumo;
 }
 
@@ -233,12 +233,48 @@ function qs(params: Record<string, string | undefined>) {
   return text ? `?${text}` : "";
 }
 
-export function listarLocalizacoes() {
-  return api.get<{ items: string[] }>("/roteiros/localizacoes", publico);
+function normalizarBuscaLocal(valor: string) {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
-export function listarRoteiros(filtro: { q?: string; local?: string; categoria?: string; destaque?: boolean } = {}) {
-  return api.get<{ items: RoteiroListaItem[] }>(
+export async function listarLocalizacoes(): Promise<{ items: string[] }> {
+  try {
+    const res = await api.get<{ items: string[] }>("/roteiros/localizacoes", publico);
+    if (Array.isArray(res?.items) && res.items.length > 0) {
+      return res;
+    }
+  } catch {
+    // Fallback abaixo: extrai as localizações diretamente de GET /roteiros (ex.: backend de produção)
+  }
+
+  try {
+    const todos = await api.get<{ items: RoteiroListaItem[] }>("/roteiros", publico);
+    const mapa = new Map<string, string>();
+    for (const item of todos.items ?? []) {
+      const limpo = item.local?.trim();
+      if (!limpo) continue;
+      const chave = normalizarBuscaLocal(limpo);
+      if (!mapa.has(chave)) {
+        mapa.set(chave, limpo);
+      }
+    }
+    const items = Array.from(mapa.values()).sort((a, b) =>
+      a.localeCompare(b, "pt-BR", { sensitivity: "base" })
+    );
+    return { items };
+  } catch {
+    return { items: [] };
+  }
+}
+
+export async function listarRoteiros(
+  filtro: { q?: string; local?: string; categoria?: string; destaque?: boolean } = {}
+) {
+  const res = await api.get<{ items: RoteiroListaItem[] }>(
     `/roteiros${qs({
       q: filtro.q,
       local: filtro.local,
@@ -247,6 +283,30 @@ export function listarRoteiros(filtro: { q?: string; local?: string; categoria?:
     })}`,
     publico
   );
+
+  let items = (res.items ?? []).map((item) => ({
+    ...item,
+    notaMedia: typeof item.notaMedia === "number" ? item.notaMedia : 0,
+    totalAvaliacoes: typeof item.totalAvaliacoes === "number" ? item.totalAvaliacoes : undefined,
+  }));
+
+  if (filtro.local?.trim()) {
+    const alvo = normalizarBuscaLocal(filtro.local);
+    items = items.filter((item) => normalizarBuscaLocal(item.local ?? "").includes(alvo));
+  }
+
+  if (filtro.q?.trim()) {
+    const termo = normalizarBuscaLocal(filtro.q);
+    items = items.filter(
+      (item) =>
+        normalizarBuscaLocal(item.titulo ?? "").includes(termo) ||
+        normalizarBuscaLocal(item.descricao ?? "").includes(termo) ||
+        normalizarBuscaLocal(item.local ?? "").includes(termo) ||
+        normalizarBuscaLocal(item.guia?.nomeCompleto ?? "").includes(termo)
+    );
+  }
+
+  return { items };
 }
 
 export function detalheRoteiro(id: string) {
